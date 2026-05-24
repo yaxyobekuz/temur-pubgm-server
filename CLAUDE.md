@@ -2,6 +2,20 @@
 
 Node.js + Express + MongoDB (Mongoose) + Agenda + JWT (access + refresh).
 
+## Domen va rollar
+
+**Temur PUBGM** — PUBG Mobile turnirlari platformasi. Backend asosiy entitylari (kelajakda qo'shiladi):
+
+- `Tournament` — turnir (sana, format, prize, slotlar, room ID).
+- `Team` — komanda (leader, members[], tournament refs).
+- `User` — barcha rollar uchun ([[telegram_id]], game nickname, game ID maydonlari player'lar uchun qo'shiladi).
+
+**Rollar:** `owner` (static, super-admin) + `admin` (turnir tashkilotchi) + `leader` (komanda kapitani) + `player` (ishtirokchi). `admin`/`leader`/`player` — DB `Role` collection orqali, seed orqali yaratiladi.
+
+**Permission keylari domen tilida**: `tournaments.create`, `tournaments.update`, `teams.read`, `players.update` va h.k. Yangi modul qo'shganda — generik `users.*` emas, domen so'zi ishlatilsin.
+
+**Player flow asosan bot orqali** (`bot/` papkasi). Server REST API bot va frontend ikkalasiga ham xizmat qiladi; bot uchun maxsus endpointlar (`/api/bot/...`) ham bo'lishi mumkin (Telegram ID orqali auth).
+
 ## Folder structure
 
 ```
@@ -121,12 +135,12 @@ Error (emitted by the central `errorHandler`):
 
 ## Role and permission
 
-- `User.role: string` — `"owner"` is the only hard-coded value. Other roles must exist in the `Role` collection.
+- `User.role: string` — `"owner"` is the only hard-coded value. Other roles (`admin`, `leader`, `player`) must exist in the `Role` collection.
 - Owner — always has every permission (hard rule in the code base).
 - `Role` collection: `{ value, label, permissions: ObjectId[] }`.
-- `Permission` collection: `{ key, label, group }`.
+- `Permission` collection: `{ key, label, group }`. Keylar **domen tilida** (`tournaments.create`, `teams.update`, ...).
 - Permissions are attached to a role via `Role.permissions: ObjectId[]`.
-- Middleware: `requireAuth -> (requireRole("owner") | requirePermission("users.read"))`.
+- Middleware: `requireAuth -> (requireRole("admin") | requirePermission("tournaments.read"))`.
 
 ## Agenda
 
