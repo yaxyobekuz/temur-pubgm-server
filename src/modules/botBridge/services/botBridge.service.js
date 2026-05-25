@@ -16,8 +16,8 @@ export const registerOrLogin = async (body) => {
   }
 
   const region = await Region.findById(body.regionId);
-  if (!region || !region.isActive) {
-    throw new ApiError(404, "Mintaqa topilmadi yoki nofaol");
+  if (!region) {
+    throw new ApiError(404, "Mintaqa topilmadi");
   }
 
   const phone = normalizePhone(body.contactPhone);
