@@ -1,7 +1,14 @@
 import User from "../../../models/user.model.js";
+import Role from "../../../models/role.model.js";
+import Team from "../../../models/team.model.js";
 import ApiError from "../../../utils/ApiError.js";
-import { ROLES } from "../../../constants/roles.js";
+import { ROLES, SELF_SWITCHABLE_ROLES } from "../../../constants/roles.js";
 import { normalizePhone } from "../../../utils/phone.js";
+import * as teamsService from "../../teams/services/teams.service.js";
+import {
+  findActiveRegistration,
+  isUserLockedByActiveTournament,
+} from "../../registrations/services/registrations.service.js";
 
 export const list = async ({ role, search, page = 1, limit = 20 }) => {
   const filter = {};
@@ -68,6 +75,52 @@ export const softRemove = async (id) => {
     throw new ApiError(403, "Owner foydalanuvchini o'chirib bo'lmaydi");
   }
   user.isActive = false;
+  await user.save();
+  return user;
+};
+
+// Toggle between `leader` and `player`. Both roles must exist in the Role collection.
+// - leader → player: keep the owned Team (leader unchanged); just flip the user's role.
+// - player → leader: detach from any team where they are a non-leader member.
+export const switchSelfRole = async (user, newRole) => {
+  if (!SELF_SWITCHABLE_ROLES.includes(newRole)) {
+    throw new ApiError(400, "Bunday rolga o'tib bo'lmaydi");
+  }
+  if (![ROLES.LEADER, ROLES.PLAYER].includes(user.role)) {
+    throw new ApiError(403, "Faqat leader yoki player rolini almashtirishi mumkin");
+  }
+  if (user.role === newRole) return user;
+
+  const roleExists = await Role.exists({ value: newRole });
+  if (!roleExists) throw new ApiError(500, "Bu rol tizimda topilmadi (seed kerak)");
+
+  if (user.role === ROLES.PLAYER && newRole === ROLES.LEADER) {
+    // Locked if the player is currently on an active tournament's main roster.
+    if (await isUserLockedByActiveTournament(user._id)) {
+      throw new ApiError(
+        409,
+        "Faol turnirda qatnashayotgan o'yinchi rolini almashtirib bo'lmaydi",
+      );
+    }
+    // Detach from every team where this user is a non-leader member.
+    await teamsService.detachFromAllTeams(user._id);
+  }
+
+  if (user.role === ROLES.LEADER && newRole === ROLES.PLAYER) {
+    // Prevent "ghost team": leader can't switch while their team is mid-tournament.
+    const team = await Team.findOne({ leader: user._id });
+    if (team) {
+      const active = await findActiveRegistration(team._id);
+      if (active) {
+        throw new ApiError(
+          409,
+          "Komandangiz faol turnirda - turnir tugamaguncha rolni almashtirib bo'lmaydi",
+        );
+      }
+    }
+  }
+
+  user.role = newRole;
   await user.save();
   return user;
 };
