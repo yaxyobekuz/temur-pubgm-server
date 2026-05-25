@@ -1,0 +1,14 @@
+import { z } from "zod";
+
+export const listSchema = z.object({
+  query: z.object({
+    search: z.string().optional(),
+    isActive: z.union([z.literal("true"), z.literal("false")]).optional(),
+    page: z.coerce.number().int().min(1).optional(),
+    limit: z.coerce.number().int().min(1).max(500).optional(),
+  }),
+});
+
+export const idSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+});
