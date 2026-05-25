@@ -4,12 +4,11 @@ import ApiError from "../../../utils/ApiError.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-export const list = async ({ search, isActive, page = 1, limit = 50 }) => {
+export const list = async ({ search, page = 1, limit = 50 }) => {
   const filter = {};
-  if (typeof isActive === "boolean") filter.isActive = isActive;
   if (search && search.trim()) {
     const rx = new RegExp(escapeRegex(search.trim()), "i");
-    filter.$or = [{ name: rx }, { nameRu: rx }, { code: rx }];
+    filter.name = rx;
   }
 
   const skip = (page - 1) * limit;
@@ -21,7 +20,7 @@ export const list = async ({ search, isActive, page = 1, limit = 50 }) => {
 };
 
 export const listPublic = async () => {
-  return Region.find({ isActive: true }).sort({ name: 1 });
+  return Region.find().sort({ name: 1 });
 };
 
 export const getById = async (id) => {
@@ -31,33 +30,29 @@ export const getById = async (id) => {
 };
 
 export const create = async (body) => {
-  const code = String(body.code || "").trim().toLowerCase();
-  const exists = await Region.findOne({ code });
-  if (exists) throw new ApiError(409, "Bu kod allaqachon mavjud");
+  const name = body.name.trim();
+  const exists = await Region.findOne({ name });
+  if (exists) throw new ApiError(409, "Bu nomli mintaqa allaqachon mavjud");
   return Region.create({
-    name: body.name.trim(),
-    nameRu: body.nameRu?.trim() || "",
-    code,
-    timezone: body.timezone?.trim() || "Asia/Tashkent",
-    isActive: body.isActive ?? true,
+    name,
+    gmtOffset: Number(body.gmtOffset),
   });
 };
 
 export const update = async (id, body) => {
   const region = await getById(id);
 
-  if (body.name !== undefined) region.name = body.name.trim();
-  if (body.nameRu !== undefined) region.nameRu = body.nameRu.trim();
-  if (body.code !== undefined) {
-    const code = String(body.code).trim().toLowerCase();
-    if (code !== region.code) {
-      const clash = await Region.findOne({ code });
-      if (clash) throw new ApiError(409, "Bu kod allaqachon mavjud");
-      region.code = code;
+  if (body.name !== undefined) {
+    const name = body.name.trim();
+    if (name !== region.name) {
+      const clash = await Region.findOne({ name });
+      if (clash) throw new ApiError(409, "Bu nomli mintaqa allaqachon mavjud");
+      region.name = name;
     }
   }
-  if (body.timezone !== undefined) region.timezone = body.timezone.trim();
-  if (body.isActive !== undefined) region.isActive = !!body.isActive;
+  if (body.gmtOffset !== undefined) {
+    region.gmtOffset = Number(body.gmtOffset);
+  }
 
   await region.save();
   return region;
@@ -67,11 +62,10 @@ export const remove = async (id) => {
   const region = await getById(id);
   const inUse = await User.exists({ region: region._id });
   if (inUse) {
-    // Soft-deactivate when references exist.
-    region.isActive = false;
-    await region.save();
-    return { soft: true, region };
+    throw new ApiError(
+      409,
+      "Mintaqa foydalanuvchilar tomonidan ishlatilmoqda - o'chirib bo'lmaydi",
+    );
   }
   await region.deleteOne();
-  return { soft: false };
 };

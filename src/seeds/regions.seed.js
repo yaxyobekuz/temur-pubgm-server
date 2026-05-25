@@ -3,47 +3,32 @@ import { connectDB, disconnectDB } from "../config/db.js";
 import Region from "../models/region.model.js";
 import logger from "../config/logger.js";
 
-// O'zbekiston viloyatlari + Toshkent shahar - barchasi Asia/Tashkent vaqt zonasida.
-const UZ_REGIONS = [
-  { code: "tashkent_city", name: "Toshkent shahri", nameRu: "Город Ташкент" },
-  { code: "tashkent", name: "Toshkent viloyati", nameRu: "Ташкентская область" },
-  { code: "andijan", name: "Andijon", nameRu: "Андижан" },
-  { code: "bukhara", name: "Buxoro", nameRu: "Бухара" },
-  { code: "fergana", name: "Farg'ona", nameRu: "Фергана" },
-  { code: "jizzakh", name: "Jizzax", nameRu: "Джизак" },
-  { code: "namangan", name: "Namangan", nameRu: "Наманган" },
-  { code: "navoiy", name: "Navoiy", nameRu: "Навои" },
-  { code: "kashkadarya", name: "Qashqadaryo", nameRu: "Кашкадарья" },
-  { code: "samarkand", name: "Samarqand", nameRu: "Самарканд" },
-  { code: "sirdaryo", name: "Sirdaryo", nameRu: "Сырдарья" },
-  { code: "surkhandarya", name: "Surxondaryo", nameRu: "Сурхандарья" },
-  { code: "khorezm", name: "Xorazm", nameRu: "Хорезм" },
-  { code: "karakalpakstan", name: "Qoraqalpog'iston", nameRu: "Каракалпакстан" },
+// Bootstrap mintaqalar - owner panelda yangilarini qo'shishi mumkin.
+// gmtOffset = GMT'dan farq (musbat sharq, manfiy g'arb).
+const DEFAULT_REGIONS = [
+  { name: "O'zbekiston", gmtOffset: 5 },
+  { name: "Rossiya", gmtOffset: 3 },
 ];
 
 const seed = async () => {
   await connectDB();
 
-  let created = 0;
-  let updated = 0;
-  for (const r of UZ_REGIONS) {
-    const res = await Region.findOneAndUpdate(
-      { code: r.code },
-      {
-        $setOnInsert: {
-          code: r.code,
-          name: r.name,
-          nameRu: r.nameRu,
-          timezone: "Asia/Tashkent",
-          isActive: true,
-        },
-      },
-      { upsert: true, new: false },
-    );
-    if (res) updated += 1;
-    else created += 1;
+  // Eski schema bilan yozilgan barcha hujjatlarni va eski indekslarni (code_1, isActive_1) tozalash.
+  // Collection drop - Mongoose qayta yaratadi yangi indekslar (name_1 unique) bilan.
+  try {
+    await Region.collection.drop();
+    logger.info("Eski regions collection o'chirildi (indekslar bilan)");
+  } catch (err) {
+    if (err.code !== 26) throw err; // 26 = NamespaceNotFound (collection mavjud emas)
   }
-  logger.info(`Regions seed: ${created} yangi, ${updated} mavjud`);
+  await Region.syncIndexes();
+
+  let created = 0;
+  for (const r of DEFAULT_REGIONS) {
+    await Region.create(r);
+    created += 1;
+  }
+  logger.info(`Regions seed: ${created} yangi mintaqa`);
 
   await disconnectDB();
 };

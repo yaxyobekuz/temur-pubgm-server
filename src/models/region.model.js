@@ -1,23 +1,14 @@
 import mongoose from "mongoose";
 
+// Soddalashtirilgan mintaqa: faqat nom va GMT soat farqi.
+// Misol: { name: "O'zbekiston", gmtOffset: 5 }, { name: "Rossiya", gmtOffset: 3 }
 const regionSchema = new mongoose.Schema(
   {
-    name: { type: String, trim: true, required: true },
-    nameRu: { type: String, trim: true, default: "" },
-    code: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      unique: true,
-      required: true,
-    },
-    timezone: { type: String, trim: true, default: "Asia/Tashkent" },
-    isActive: { type: Boolean, default: true },
+    name: { type: String, trim: true, required: true, unique: true },
+    gmtOffset: { type: Number, required: true, min: -12, max: 14 },
   },
   { timestamps: true },
 );
-
-regionSchema.index({ isActive: 1 });
 
 regionSchema.set("toJSON", {
   transform: (_doc, ret) => {
