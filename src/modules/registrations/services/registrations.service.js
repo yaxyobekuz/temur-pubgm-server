@@ -12,6 +12,7 @@ import {
   MODE_ROSTER_SIZE,
 } from "../../../constants/tournament.js";
 import * as botClient from "../../../services/botClient.service.js";
+import { getTelegramChannelIdentifier } from "../../../utils/telegram.js";
 
 // Active = a registration the team is currently committed to.
 // Used by Phase 3 locks (team kick/leave, role swap, second registration).
@@ -73,21 +74,22 @@ const validateRoster = async ({ roster, team, mode }) => {
 };
 
 const ensureSponsorMembership = async ({ tournament, tgIds }) => {
-  const tgChannels = (tournament.sponsorChannels || []).filter(
-    (c) => c.type === "telegram" && c.chatId,
-  );
+  const tgChannels = (tournament.sponsorChannels || [])
+    .filter((c) => c.type === "telegram")
+    .map((c) => ({ channel: c, identifier: getTelegramChannelIdentifier(c) }))
+    .filter((x) => x.identifier);
   if (!tgChannels.length || !tgIds.length) return { ok: true, missing: [] };
 
   try {
     const map = await botClient.checkMembership({
       tgIds,
-      chatIds: tgChannels.map((c) => c.chatId),
+      chatIds: tgChannels.map((x) => x.identifier),
     });
 
     const missing = [];
-    for (const chan of tgChannels) {
-      const notSubscribed = tgIds.some((tg) => map?.[tg]?.[chan.chatId] === false);
-      if (notSubscribed) missing.push({ title: chan.title, url: chan.url });
+    for (const { channel, identifier } of tgChannels) {
+      const notSubscribed = tgIds.some((tg) => map?.[tg]?.[identifier] === false);
+      if (notSubscribed) missing.push({ title: channel.title, url: channel.url });
     }
     return { ok: missing.length === 0, missing };
   } catch (err) {

@@ -2,7 +2,9 @@ import { z } from "zod";
 import {
   TOURNAMENT_STATUS,
   TOURNAMENT_MODE,
+  MAX_STAGES_COUNT,
 } from "../../../constants/tournament.js";
+import { isPrivateTelegramUrl } from "../../../utils/telegram.js";
 
 export const listSchema = z.object({
   query: z.object({
@@ -28,6 +30,7 @@ export const createSchema = z.object({
     startDate: z.union([z.coerce.date(), z.string().min(1)]).optional(),
     maps: z.array(z.string().min(1).max(60)).optional(),
     maxTeams: z.number().int().min(1).max(1000).optional(),
+    stagesCount: z.number().int().min(1).max(MAX_STAGES_COUNT).optional(),
   }),
 });
 
@@ -43,6 +46,7 @@ export const updateSchema = z.object({
       startDate: z.union([z.coerce.date(), z.null()]).optional(),
       maps: z.array(z.string().min(1).max(60)).optional(),
       maxTeams: z.number().int().min(1).max(1000).optional(),
+      stagesCount: z.number().int().min(1).max(MAX_STAGES_COUNT).optional(),
     })
     .refine((b) => Object.keys(b).length > 0, {
       message: "Hech bo'lmaganda bitta maydon kerak",
@@ -56,15 +60,32 @@ export const changeStatusSchema = z.object({
   }),
 });
 
-export const addSponsorSchema = z.object({
+export const promoteSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({
-    type: z.enum(["telegram", "social"]),
-    title: z.string().min(1).max(120),
-    url: z.string().min(3).max(500),
-    chatId: z.string().max(60).optional(),
-    chatUsername: z.string().max(120).optional(),
+    teamIds: z.array(z.string().min(1)).min(1, "Hech bo'lmaganda bitta komanda tanlang"),
   }),
+});
+
+export const addSponsorSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z
+    .object({
+      type: z.enum(["telegram", "social"]),
+      title: z.string().min(1).max(120),
+      url: z.string().min(3).max(500),
+      chatId: z.string().max(60).optional(),
+    })
+    .superRefine((data, ctx) => {
+      if (data.type !== "telegram") return;
+      if (isPrivateTelegramUrl(data.url) && !data.chatId?.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["chatId"],
+          message: "Yopiq kanal uchun Chat ID kiritish majburiy",
+        });
+      }
+    }),
 });
 
 export const removeSponsorSchema = z.object({
