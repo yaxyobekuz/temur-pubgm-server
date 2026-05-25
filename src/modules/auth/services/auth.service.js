@@ -51,7 +51,7 @@ export const login = async ({ login, password, userAgent, ip }) => {
     throw new ApiError(401, "Login yoki parol noto'g'ri");
   }
 
-  // Leader va player faqat Telegram bot orqali kiradi — web login bloklangan.
+  // Leader va player faqat Telegram bot orqali kiradi - web login bloklangan.
   if (![ROLES.OWNER, ROLES.ADMIN].includes(user.role)) {
     throw new ApiError(403, "Bu rolda faqat Telegram bot orqali kiriladi");
   }
