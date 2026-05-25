@@ -18,7 +18,6 @@ export const PERMISSIONS = Object.freeze({
   TOURNAMENTS_DELETE: "tournaments.delete",
   TOURNAMENTS_REGISTER: "tournaments.register",
 
-  STAGES_UPDATE: "stages.update",
   GROUPS_UPDATE: "groups.update",
 
   REGISTRATIONS_READ: "registrations.read",
@@ -28,11 +27,6 @@ export const PERMISSIONS = Object.freeze({
   BROADCASTS_CREATE: "broadcasts.create",
   BROADCASTS_UPDATE: "broadcasts.update",
   BROADCASTS_DELETE: "broadcasts.delete",
-
-  MATCHES_READ: "matches.read",
-  MATCHES_CREATE: "matches.create",
-  MATCHES_UPDATE: "matches.update",
-  MATCHES_DELETE: "matches.delete",
 });
 
 export const PERMISSION_LABELS = {
@@ -54,7 +48,6 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.TOURNAMENTS_DELETE]: { label: "Turnirni o'chirish", group: "tournaments" },
   [PERMISSIONS.TOURNAMENTS_REGISTER]: { label: "Turnirga ro'yxatdan o'tish", group: "tournaments" },
 
-  [PERMISSIONS.STAGES_UPDATE]: { label: "Bosqichlarni boshqarish", group: "tournaments" },
   [PERMISSIONS.GROUPS_UPDATE]: { label: "Guruhlarni boshqarish", group: "tournaments" },
 
   [PERMISSIONS.REGISTRATIONS_READ]: { label: "Ro'yxatdan o'tganlarni ko'rish", group: "tournaments" },
@@ -64,9 +57,4 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.BROADCASTS_CREATE]: { label: "Xabarnoma yaratish", group: "broadcasts" },
   [PERMISSIONS.BROADCASTS_UPDATE]: { label: "Xabarnomani tahrirlash", group: "broadcasts" },
   [PERMISSIONS.BROADCASTS_DELETE]: { label: "Xabarnomani o'chirish", group: "broadcasts" },
-
-  [PERMISSIONS.MATCHES_READ]: { label: "Matchlarni ko'rish", group: "matches" },
-  [PERMISSIONS.MATCHES_CREATE]: { label: "Match yaratish", group: "matches" },
-  [PERMISSIONS.MATCHES_UPDATE]: { label: "Match natijasi", group: "matches" },
-  [PERMISSIONS.MATCHES_DELETE]: { label: "Matchni o'chirish", group: "matches" },
 };

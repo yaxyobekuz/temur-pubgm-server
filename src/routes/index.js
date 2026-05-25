@@ -9,7 +9,6 @@ import tournamentsRouter from "../modules/tournaments/tournaments.routes.js";
 import groupsRouter from "../modules/groups/groups.routes.js";
 import registrationsRouter from "../modules/registrations/registrations.routes.js";
 import broadcastsRouter from "../modules/broadcasts/broadcasts.routes.js";
-import matchesRouter from "../modules/matches/matches.routes.js";
 import uploadsRouter from "../modules/uploads/uploads.routes.js";
 import botBridgeRouter from "../modules/botBridge/botBridge.routes.js";
 import botAuth from "../middleware/botAuth.js";
@@ -32,7 +31,6 @@ router.use("/tournaments", tournamentsRouter);
 router.use("/groups", groupsRouter);
 router.use("/tournament-registrations", registrationsRouter);
 router.use("/broadcasts", broadcastsRouter);
-router.use("/matches", matchesRouter);
 router.use("/uploads", uploadsRouter);
 
 // Bot bridge - guarded by X-Bot-Secret.
