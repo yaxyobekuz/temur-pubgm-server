@@ -1,18 +1,18 @@
-# Backend — Temur PUBGM (server/)
+# Backend - Temur PUBGM (server/)
 
 Node.js + Express + MongoDB (Mongoose) + Agenda + JWT (access + refresh).
 
 ## Domen va rollar
 
-**Temur PUBGM** — PUBG Mobile turnirlari platformasi. Backend asosiy entitylari (kelajakda qo'shiladi):
+**Temur PUBGM** - PUBG Mobile turnirlari platformasi. Backend asosiy entitylari (kelajakda qo'shiladi):
 
-- `Tournament` — turnir (sana, format, prize, slotlar, room ID).
-- `Team` — komanda (leader, members[], tournament refs).
-- `User` — barcha rollar uchun ([[telegram_id]], game nickname, game ID maydonlari player'lar uchun qo'shiladi).
+- `Tournament` - turnir (sana, format, prize, slotlar, room ID).
+- `Team` - komanda (leader, members[], tournament refs).
+- `User` - barcha rollar uchun ([[telegram_id]], game nickname, game ID maydonlari player'lar uchun qo'shiladi).
 
-**Rollar:** `owner` (static, super-admin) + `admin` (turnir tashkilotchi) + `leader` (komanda kapitani) + `player` (ishtirokchi). `admin`/`leader`/`player` — DB `Role` collection orqali, seed orqali yaratiladi.
+**Rollar:** `owner` (static, super-admin) + `admin` (turnir tashkilotchi) + `leader` (komanda kapitani) + `player` (ishtirokchi). `admin`/`leader`/`player` - DB `Role` collection orqali, seed orqali yaratiladi.
 
-**Permission keylari domen tilida**: `tournaments.create`, `tournaments.update`, `teams.read`, `players.update` va h.k. Yangi modul qo'shganda — generik `users.*` emas, domen so'zi ishlatilsin.
+**Permission keylari domen tilida**: `tournaments.create`, `tournaments.update`, `teams.read`, `players.update` va h.k. Yangi modul qo'shganda - generik `users.*` emas, domen so'zi ishlatilsin.
 
 **Player flow asosan bot orqali** (`bot/` papkasi). Server REST API bot va frontend ikkalasiga ham xizmat qiladi; bot uchun maxsus endpointlar (`/api/bot/...`) ham bo'lishi mumkin (Telegram ID orqali auth).
 
@@ -128,15 +128,15 @@ Error (emitted by the central `errorHandler`):
 
 ## Auth flow
 
-- `POST /api/auth/login` — `{ login, password }` -> `accessToken` + refresh httpOnly cookie.
-- `POST /api/auth/refresh` — refresh cookie -> new access + a rotated new refresh.
-- `POST /api/auth/logout` — refresh is removed from the DB + the cookie is cleared.
-- `GET /api/auth/me` — protected by `requireAuth`, returns `{ user, role, permissions }`.
+- `POST /api/auth/login` - `{ login, password }` -> `accessToken` + refresh httpOnly cookie.
+- `POST /api/auth/refresh` - refresh cookie -> new access + a rotated new refresh.
+- `POST /api/auth/logout` - refresh is removed from the DB + the cookie is cleared.
+- `GET /api/auth/me` - protected by `requireAuth`, returns `{ user, role, permissions }`.
 
 ## Role and permission
 
-- `User.role: string` — `"owner"` is the only hard-coded value. Other roles (`admin`, `leader`, `player`) must exist in the `Role` collection.
-- Owner — always has every permission (hard rule in the code base).
+- `User.role: string` - `"owner"` is the only hard-coded value. Other roles (`admin`, `leader`, `player`) must exist in the `Role` collection.
+- Owner - always has every permission (hard rule in the code base).
 - `Role` collection: `{ value, label, permissions: ObjectId[] }`.
 - `Permission` collection: `{ key, label, group }`. Keylar **domen tilida** (`tournaments.create`, `teams.update`, ...).
 - Permissions are attached to a role via `Role.permissions: ObjectId[]`.
@@ -144,8 +144,8 @@ Error (emitted by the central `errorHandler`):
 
 ## Agenda
 
-- `config/agenda.js` — instance.
-- `jobs/index.js` — `agenda.define("job-name", handler)` + `await agenda.start()`.
+- `config/agenda.js` - instance.
+- `jobs/index.js` - `agenda.define("job-name", handler)` + `await agenda.start()`.
 - Graceful shutdown: in `app.js`, on SIGTERM/SIGINT call `await agenda.stop()`.
 
 ## Commands
@@ -158,5 +158,5 @@ npm run lint
 
 ## Language rules
 
-- Code and technical values — English.
-- The `message` returned to the user — Uzbek (`"Tizimga xush kelibsiz"`, `"Login yoki parol noto'g'ri"`).
+- Code and technical values - English.
+- The `message` returned to the user - Uzbek (`"Tizimga xush kelibsiz"`, `"Login yoki parol noto'g'ri"`).
