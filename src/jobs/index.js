@@ -3,9 +3,11 @@ import logger from "../config/logger.js";
 import defineCleanupExpiredTokens, {
   JOB_NAME as CLEANUP_JOB,
 } from "./cleanupExpiredTokens.job.js";
+import defineBroadcast from "./broadcast.job.js";
 
 export const startJobs = async () => {
   defineCleanupExpiredTokens(agenda);
+  defineBroadcast(agenda);
 
   await agenda.start();
 
