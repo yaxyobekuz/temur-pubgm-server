@@ -29,7 +29,6 @@ const tournamentSchema = new mongoose.Schema(
       enum: Object.values(TOURNAMENT_MODE),
       required: true,
     },
-    region: { type: mongoose.Schema.Types.ObjectId, ref: "Region", default: null },
     startDate: { type: Date, default: null },
     status: {
       type: String,

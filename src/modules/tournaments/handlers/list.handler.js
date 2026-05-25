@@ -8,7 +8,6 @@ const list = asyncHandler(async (req, res) => {
     search: req.query.search,
     status: req.query.status,
     mode: req.query.mode,
-    regionId: req.query.regionId,
     page,
     limit,
   });

@@ -1,5 +1,4 @@
 import Tournament from "../../../models/tournament.model.js";
-import Region from "../../../models/region.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import {
   TOURNAMENT_STATUS,
@@ -30,29 +29,24 @@ const buildUniqueSlug = async (base) => {
   return `${slug}-${Date.now().toString(36).slice(-4)}`;
 };
 
-export const list = async ({ search, status, mode, regionId, page = 1, limit = 20 }) => {
+export const list = async ({ search, status, mode, page = 1, limit = 20 }) => {
   const filter = {};
   if (status) filter.status = status;
   if (mode) filter.mode = mode;
-  if (regionId) filter.region = regionId;
   if (search && search.trim()) {
     const rx = new RegExp(escapeRegex(search.trim()), "i");
     filter.$or = [{ title: rx }, { slug: rx }];
   }
   const skip = (page - 1) * limit;
   const [items, total] = await Promise.all([
-    Tournament.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate("region", "name code timezone"),
+    Tournament.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
     Tournament.countDocuments(filter),
   ]);
   return { items, total, page, limit };
 };
 
 export const getById = async (id) => {
-  const t = await Tournament.findById(id).populate("region", "name code timezone");
+  const t = await Tournament.findById(id);
   if (!t) throw new ApiError(404, "Turnir topilmadi");
   return t;
 };
@@ -60,10 +54,6 @@ export const getById = async (id) => {
 export const create = async (body) => {
   if (!Object.values(TOURNAMENT_MODE).includes(body.mode)) {
     throw new ApiError(400, "Noto'g'ri o'yin rejimi");
-  }
-  if (body.regionId) {
-    const region = await Region.findById(body.regionId);
-    if (!region || !region.isActive) throw new ApiError(404, "Mintaqa topilmadi yoki nofaol");
   }
   const slug = await buildUniqueSlug(body.title);
 
@@ -74,14 +64,13 @@ export const create = async (body) => {
     description: body.description?.trim() || "",
     prizePool: body.prizePool?.trim() || "",
     mode: body.mode,
-    region: body.regionId || null,
     startDate: body.startDate ? new Date(body.startDate) : null,
     sponsorChannels: [],
     maps: Array.isArray(body.maps) ? body.maps.filter(Boolean) : [],
     maxTeams: body.maxTeams ?? 60,
     status: TOURNAMENT_STATUS.DRAFT,
   });
-  return t.populate("region", "name code timezone");
+  return t;
 };
 
 export const update = async (id, body) => {
@@ -102,15 +91,6 @@ export const update = async (id, body) => {
     }
     t.mode = body.mode;
   }
-  if (body.regionId !== undefined) {
-    if (body.regionId) {
-      const region = await Region.findById(body.regionId);
-      if (!region || !region.isActive) throw new ApiError(404, "Mintaqa topilmadi yoki nofaol");
-      t.region = region._id;
-    } else {
-      t.region = null;
-    }
-  }
   if (body.startDate !== undefined) {
     t.startDate = body.startDate ? new Date(body.startDate) : null;
   }
@@ -120,7 +100,7 @@ export const update = async (id, body) => {
   if (body.maxTeams !== undefined) t.maxTeams = body.maxTeams;
 
   await t.save();
-  return t.populate("region", "name code timezone");
+  return t;
 };
 
 export const remove = async (id) => {
@@ -177,7 +157,7 @@ export const changeStatus = async (id, next, currentUser) => {
 
   await enqueueStatusBroadcast(t, next, currentUser);
 
-  return t.populate("region", "name code timezone");
+  return t;
 };
 
 // Sponsor channels (Phase 3 verifies TG membership; here we just store the list).
@@ -194,7 +174,7 @@ export const addSponsorChannel = async (id, body) => {
     chatUsername: body.chatUsername?.trim() || "",
   });
   await t.save();
-  return t.populate("region", "name code timezone");
+  return t;
 };
 
 export const removeSponsorChannel = async (id, channelId) => {
@@ -207,5 +187,5 @@ export const removeSponsorChannel = async (id, channelId) => {
     throw new ApiError(404, "Kanal topilmadi");
   }
   await t.save();
-  return t.populate("region", "name code timezone");
+  return t;
 };
