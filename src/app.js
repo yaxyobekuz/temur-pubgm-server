@@ -1,3 +1,4 @@
+import path from "node:path";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
@@ -32,6 +33,20 @@ app.use(cookieParser(env.COOKIE_SECRET));
 if (!isProd) app.use(morgan("dev"));
 
 app.use(generalLimiter);
+
+// Public static for uploaded broadcast images.
+// Telegram fetches the URL when forwarding the photo, so we relax CORP for this scope.
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(path.resolve(process.cwd(), "uploads"), {
+    maxAge: isProd ? "30d" : "1h",
+  }),
+);
+
 app.use("/api", auditLog, apiRouter);
 
 app.use(notFound);
