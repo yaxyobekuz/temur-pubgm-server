@@ -21,7 +21,7 @@ const seed = async () => {
   }
   logger.info(`Permissions seed qilindi: ${Object.keys(permIds).length}`);
 
-  // Owner — super-admin, always has every permission.
+  // Owner - super-admin, always has every permission.
   await Role.findOneAndUpdate(
     { value: ROLES.OWNER },
     {
@@ -31,6 +31,73 @@ const seed = async () => {
     { upsert: true, new: true },
   );
   logger.info("Owner roli seed qilindi");
+
+  // Admin - tournament organizer; gets read + team/region oversight by default.
+  // (Tournament-specific permissions appear in Phase 2 and will be granted there.)
+  await Role.findOneAndUpdate(
+    { value: ROLES.ADMIN },
+    {
+      $setOnInsert: { value: ROLES.ADMIN, label: "Administrator" },
+      $set: {
+        permissions: [
+          permIds[PERMISSIONS.USERS_READ],
+          permIds[PERMISSIONS.ACTIVITY_LOGS_READ],
+          permIds[PERMISSIONS.REGIONS_READ],
+          permIds[PERMISSIONS.REGIONS_CREATE],
+          permIds[PERMISSIONS.REGIONS_UPDATE],
+          permIds[PERMISSIONS.REGIONS_DELETE],
+          permIds[PERMISSIONS.TEAMS_READ],
+          permIds[PERMISSIONS.TEAMS_UPDATE],
+          permIds[PERMISSIONS.TEAMS_DELETE],
+          permIds[PERMISSIONS.TOURNAMENTS_READ],
+          permIds[PERMISSIONS.TOURNAMENTS_CREATE],
+          permIds[PERMISSIONS.TOURNAMENTS_UPDATE],
+          permIds[PERMISSIONS.TOURNAMENTS_DELETE],
+          permIds[PERMISSIONS.STAGES_UPDATE],
+          permIds[PERMISSIONS.GROUPS_UPDATE],
+          permIds[PERMISSIONS.REGISTRATIONS_READ],
+          permIds[PERMISSIONS.REGISTRATIONS_UPDATE],
+          permIds[PERMISSIONS.BROADCASTS_READ],
+          permIds[PERMISSIONS.BROADCASTS_CREATE],
+          permIds[PERMISSIONS.BROADCASTS_UPDATE],
+          permIds[PERMISSIONS.BROADCASTS_DELETE],
+          permIds[PERMISSIONS.MATCHES_READ],
+          permIds[PERMISSIONS.MATCHES_CREATE],
+          permIds[PERMISSIONS.MATCHES_UPDATE],
+          permIds[PERMISSIONS.MATCHES_DELETE],
+        ].filter(Boolean),
+      },
+    },
+    { upsert: true, new: true },
+  );
+  logger.info("Admin roli seed qilindi");
+
+  // Leader - team captain. Self-scoped + tournament registration.
+  await Role.findOneAndUpdate(
+    { value: ROLES.LEADER },
+    {
+      $setOnInsert: { value: ROLES.LEADER, label: "Komanda sardori" },
+      $set: {
+        permissions: [
+          permIds[PERMISSIONS.TOURNAMENTS_READ],
+          permIds[PERMISSIONS.TOURNAMENTS_REGISTER],
+        ].filter(Boolean),
+      },
+    },
+    { upsert: true, new: true },
+  );
+  logger.info("Leader roli seed qilindi");
+
+  // Player - participant. No panel permissions; bot is the main interface.
+  await Role.findOneAndUpdate(
+    { value: ROLES.PLAYER },
+    {
+      $setOnInsert: { value: ROLES.PLAYER, label: "O'yinchi" },
+      $set: { permissions: [] },
+    },
+    { upsert: true, new: true },
+  );
+  logger.info("Player roli seed qilindi");
 
   await disconnectDB();
 };
