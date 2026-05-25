@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { DEFAULT_MAX_TEAMS_PER_GROUP } from "../constants/tournament.js";
+import { DEFAULT_GROUP_SIZE } from "../constants/tournament.js";
 
 const groupSchema = new mongoose.Schema(
   {
@@ -10,8 +10,7 @@ const groupSchema = new mongoose.Schema(
       index: true,
     },
     code: { type: String, trim: true, uppercase: true, required: true },
-    maxTeams: { type: Number, min: 1, default: DEFAULT_MAX_TEAMS_PER_GROUP },
-    // In Phase 2 these are opaque ObjectIds. Phase 3 reads them as TournamentRegistration refs.
+    maxTeams: { type: Number, min: 1, default: DEFAULT_GROUP_SIZE },
     teams: [{ type: mongoose.Schema.Types.ObjectId }],
   },
   { timestamps: true },

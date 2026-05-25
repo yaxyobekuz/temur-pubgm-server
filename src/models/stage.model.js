@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
-import { STAGE_STATUS, ALL_STAGE_ORDERS, DEFAULT_MAX_TEAMS_PER_GROUP } from "../constants/tournament.js";
 
-// `order` stores 1, 2, or the string "final".
+// Minimal "stage marker" — tournament + order raqami. UI'da oxirgi order = "Final".
 const stageSchema = new mongoose.Schema(
   {
     tournament: {
@@ -10,23 +9,7 @@ const stageSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    order: {
-      type: mongoose.Schema.Types.Mixed,
-      required: true,
-      validate: {
-        validator: (v) => ALL_STAGE_ORDERS.includes(v),
-        message: "Bosqich tartibi noto'g'ri",
-      },
-    },
-    status: {
-      type: String,
-      enum: Object.values(STAGE_STATUS),
-      default: STAGE_STATUS.PENDING,
-    },
-    startAt: { type: Date, default: null },
-    endAt: { type: Date, default: null },
-    maxGroups: { type: Number, min: 1, default: 3 },
-    maxTeamsPerGroup: { type: Number, min: 1, default: DEFAULT_MAX_TEAMS_PER_GROUP },
+    order: { type: Number, min: 1, required: true },
   },
   { timestamps: true },
 );

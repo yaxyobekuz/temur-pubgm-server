@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import {
   TOURNAMENT_STATUS,
   TOURNAMENT_MODE,
+  DEFAULT_STAGES_COUNT,
+  MAX_STAGES_COUNT,
 } from "../constants/tournament.js";
 
 const sponsorChannelSchema = new mongoose.Schema(
@@ -37,6 +39,12 @@ const tournamentSchema = new mongoose.Schema(
     sponsorChannels: [sponsorChannelSchema],
     maps: [{ type: String, trim: true }],
     maxTeams: { type: Number, min: 1, default: 60 },
+    stagesCount: {
+      type: Number,
+      min: 1,
+      max: MAX_STAGES_COUNT,
+      default: DEFAULT_STAGES_COUNT,
+    },
   },
   { timestamps: true },
 );

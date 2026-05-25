@@ -1,10 +1,12 @@
 // Tournament status machine + allowed transitions.
+// Dinamik bosqichlar uchun stage1..stage9 enum (10 ta cheklov bilan).
+const STAGE_KEYS = Array.from({ length: 9 }, (_, i) => [`STAGE_${i + 1}`, `stage${i + 1}`]);
+
 export const TOURNAMENT_STATUS = Object.freeze({
   DRAFT: "draft",
   ANNOUNCED: "announced",
   REGISTRATION: "registration",
-  STAGE_1: "stage1",
-  STAGE_2: "stage2",
+  ...Object.fromEntries(STAGE_KEYS),
   FINAL: "final",
   FINISHED: "finished",
 });
@@ -13,33 +15,54 @@ export const TOURNAMENT_STATUS_LABELS = Object.freeze({
   [TOURNAMENT_STATUS.DRAFT]: "Qoralama",
   [TOURNAMENT_STATUS.ANNOUNCED]: "E'lon qilindi",
   [TOURNAMENT_STATUS.REGISTRATION]: "Ro'yxatdan o'tish",
-  [TOURNAMENT_STATUS.STAGE_1]: "1-bosqich",
-  [TOURNAMENT_STATUS.STAGE_2]: "2-bosqich",
+  ...Object.fromEntries(STAGE_KEYS.map(([, v], i) => [v, `${i + 1}-bosqich`])),
   [TOURNAMENT_STATUS.FINAL]: "Final",
   [TOURNAMENT_STATUS.FINISHED]: "Yakunlandi",
 });
 
+const STAGE_STATUS_VALUES = STAGE_KEYS.map(([, v]) => v);
+
 // Active states - used by Phase 3 active-tournament lock.
 export const ACTIVE_TOURNAMENT_STATUSES = Object.freeze([
   TOURNAMENT_STATUS.REGISTRATION,
-  TOURNAMENT_STATUS.STAGE_1,
-  TOURNAMENT_STATUS.STAGE_2,
+  ...STAGE_STATUS_VALUES,
   TOURNAMENT_STATUS.FINAL,
 ]);
 
-// Forward-only transitions. Owner can also jump to FINISHED at any point.
-const STATUS_TRANSITIONS = {
-  [TOURNAMENT_STATUS.DRAFT]: [TOURNAMENT_STATUS.ANNOUNCED, TOURNAMENT_STATUS.FINISHED],
-  [TOURNAMENT_STATUS.ANNOUNCED]: [TOURNAMENT_STATUS.REGISTRATION, TOURNAMENT_STATUS.FINISHED],
-  [TOURNAMENT_STATUS.REGISTRATION]: [TOURNAMENT_STATUS.STAGE_1, TOURNAMENT_STATUS.FINISHED],
-  [TOURNAMENT_STATUS.STAGE_1]: [TOURNAMENT_STATUS.STAGE_2, TOURNAMENT_STATUS.FINISHED],
-  [TOURNAMENT_STATUS.STAGE_2]: [TOURNAMENT_STATUS.FINAL, TOURNAMENT_STATUS.FINISHED],
-  [TOURNAMENT_STATUS.FINAL]: [TOURNAMENT_STATUS.FINISHED],
-  [TOURNAMENT_STATUS.FINISHED]: [],
+// Return the stage number (1..9) embedded in a "stageN" status, or null.
+export const stageNumberFromStatus = (status) => {
+  const m = /^stage(\d+)$/.exec(status || "");
+  return m ? Number(m[1]) : null;
 };
 
-export const canTransition = (from, to) =>
-  (STATUS_TRANSITIONS[from] || []).includes(to);
+// Build the status string for a given stage number; "final" if it is the last one.
+export const stageStatusFor = (stageNumber, stagesCount) => {
+  if (stageNumber < 1) return null;
+  if (stageNumber > stagesCount) return null;
+  if (stageNumber === stagesCount) return TOURNAMENT_STATUS.FINAL;
+  return `stage${stageNumber}`;
+};
+
+// Forward transitions are computed dynamically from stagesCount.
+// Owner can also jump to FINISHED from any non-terminal state.
+export const allowedNextStatuses = (current, stagesCount = 3) => {
+  if (current === TOURNAMENT_STATUS.FINISHED) return [];
+  const FINISHED = TOURNAMENT_STATUS.FINISHED;
+  if (current === TOURNAMENT_STATUS.DRAFT) return [TOURNAMENT_STATUS.ANNOUNCED, FINISHED];
+  if (current === TOURNAMENT_STATUS.ANNOUNCED) return [TOURNAMENT_STATUS.REGISTRATION, FINISHED];
+  if (current === TOURNAMENT_STATUS.REGISTRATION) {
+    return [stageStatusFor(1, stagesCount), FINISHED].filter(Boolean);
+  }
+  if (current === TOURNAMENT_STATUS.FINAL) return [FINISHED];
+  const n = stageNumberFromStatus(current);
+  if (n !== null) {
+    return [stageStatusFor(n + 1, stagesCount), FINISHED].filter(Boolean);
+  }
+  return [];
+};
+
+export const canTransition = (from, to, stagesCount = 3) =>
+  allowedNextStatuses(from, stagesCount).includes(to);
 
 export const TOURNAMENT_MODE = Object.freeze({
   SOLO: "solo",
@@ -54,23 +77,6 @@ export const MODE_ROSTER_SIZE = Object.freeze({
   [TOURNAMENT_MODE.SQUAD]: 4,
 });
 
-export const STAGE_STATUS = Object.freeze({
-  PENDING: "pending",
-  ACTIVE: "active",
-  FINISHED: "finished",
-});
-
-export const STAGE_ORDER = Object.freeze({
-  ONE: 1,
-  TWO: 2,
-  FINAL: "final",
-});
-
-export const ALL_STAGE_ORDERS = [
-  STAGE_ORDER.ONE,
-  STAGE_ORDER.TWO,
-  STAGE_ORDER.FINAL,
-];
-
-// Default max teams per group (overridable per-stage).
-export const DEFAULT_MAX_TEAMS_PER_GROUP = 20;
+export const DEFAULT_STAGES_COUNT = 3;
+export const DEFAULT_GROUP_SIZE = 20;
+export const MAX_STAGES_COUNT = 9;

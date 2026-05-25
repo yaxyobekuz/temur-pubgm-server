@@ -11,6 +11,7 @@ import {
   changeStatusSchema,
   addSponsorSchema,
   removeSponsorSchema,
+  promoteSchema,
 } from "./validators/tournaments.validator.js";
 import list from "./handlers/list.handler.js";
 import getById from "./handlers/getById.handler.js";
@@ -18,6 +19,7 @@ import create from "./handlers/create.handler.js";
 import update from "./handlers/update.handler.js";
 import remove from "./handlers/remove.handler.js";
 import changeStatus from "./handlers/changeStatus.handler.js";
+import promote from "./handlers/promote.handler.js";
 import {
   addSponsorChannel,
   removeSponsorChannel,
@@ -68,6 +70,13 @@ router.post(
   requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
   validate(changeStatusSchema),
   changeStatus,
+);
+router.post(
+  "/:id/promote-to-next",
+  requireAuth,
+  requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
+  validate(promoteSchema),
+  promote,
 );
 router.post(
   "/:id/sponsor-channels",
