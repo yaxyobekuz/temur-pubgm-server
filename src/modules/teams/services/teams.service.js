@@ -3,6 +3,7 @@ import Team, { TEAM_MEMBERS_MAX } from "../../../models/team.model.js";
 import User from "../../../models/user.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import { ROLES } from "../../../constants/roles.js";
+import { deleteUploadByUrl } from "../../../utils/uploadFile.js";
 import {
   isTeamLockedByActiveTournament,
   isUserLockedByActiveTournament,
@@ -62,10 +63,19 @@ export const getMyTeam = async (userId) => {
     .populate("members", "firstName lastName username tgUsername gameNickname");
 };
 
+// Replace team.logo, deleting the previously stored file if it changed.
+const swapLogo = async (team, nextLogo) => {
+  const next = (nextLogo || "").trim();
+  if (next === team.logo) return;
+  const old = team.logo;
+  team.logo = next;
+  if (old) await deleteUploadByUrl(old);
+};
+
 export const adminUpdate = async (id, body) => {
   const team = await getById(id);
   if (body.name !== undefined) team.name = body.name.trim();
-  if (body.logo !== undefined) team.logo = body.logo.trim();
+  if (body.logo !== undefined) await swapLogo(team, body.logo);
   if (body.isActive !== undefined) team.isActive = !!body.isActive;
   await team.save();
   return team;
@@ -74,7 +84,9 @@ export const adminUpdate = async (id, body) => {
 export const adminRemove = async (id) => {
   const team = await Team.findById(id);
   if (!team) throw new ApiError(404, "Komanda topilmadi");
+  const oldLogo = team.logo;
   await team.deleteOne();
+  if (oldLogo) await deleteUploadByUrl(oldLogo);
 };
 
 export const createForLeader = async (leaderUser, body) => {
@@ -103,7 +115,7 @@ export const updateOwn = async (leaderUser, body) => {
   const team = await Team.findOne({ leader: leaderUser._id });
   if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
   if (body.name !== undefined) team.name = body.name.trim();
-  if (body.logo !== undefined) team.logo = body.logo.trim();
+  if (body.logo !== undefined) await swapLogo(team, body.logo);
   await team.save();
   return team;
 };

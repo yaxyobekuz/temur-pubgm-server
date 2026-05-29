@@ -1,6 +1,4 @@
-import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 import { Router } from "express";
 import multer from "multer";
 import requireAuth from "../../middleware/auth.js";
@@ -8,9 +6,7 @@ import requirePermission from "../../middleware/requirePermission.js";
 import asyncHandler from "../../middleware/asyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
 import { PERMISSIONS } from "../../constants/permissions.js";
-
-const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
-if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+import { UPLOADS_DIR, buildUploadName } from "../../utils/uploadFile.js";
 
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -18,8 +14,7 @@ const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (_req, file, cb) => {
     const ext = (path.extname(file.originalname) || ".bin").slice(0, 8);
-    const id = crypto.randomBytes(12).toString("hex");
-    cb(null, `${Date.now()}_${id}${ext}`);
+    cb(null, buildUploadName(ext));
   },
 });
 
