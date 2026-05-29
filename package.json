@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "seed:permissions": "node src/seeds/permissions.seed.js",
     "seed:regions": "node src/seeds/regions.seed.js",
-    "seed:owner": "node src/seeds/owner.seed.js"
+    "seed:owner": "node src/seeds/owner.seed.js",
+    "migrate:tournament-status": "node src/scripts/migrateTournamentStatus.js"
   },
   "dependencies": {
     "agenda": "^5.0.0",

@@ -33,9 +33,11 @@ const tournamentSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: Object.values(TOURNAMENT_STATUS),
-      default: TOURNAMENT_STATUS.DRAFT,
+      default: TOURNAMENT_STATUS.PENDING,
       index: true,
     },
+    // Which stage (bosqich) the tournament is currently in; decoupled from status.
+    currentStage: { type: Number, min: 1, default: 1 },
     sponsorChannels: [sponsorChannelSchema],
     maps: [{ type: String, trim: true }],
     maxTeams: { type: Number, min: 1, default: 60 },

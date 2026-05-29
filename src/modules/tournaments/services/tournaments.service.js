@@ -9,12 +9,9 @@ import {
   TOURNAMENT_STATUS,
   TOURNAMENT_STATUS_LABELS,
   TOURNAMENT_MODE,
-  canTransition,
   ACTIVE_TOURNAMENT_STATUSES,
   DEFAULT_STAGES_COUNT,
   MAX_STAGES_COUNT,
-  stageNumberFromStatus,
-  stageStatusFor,
 } from "../../../constants/tournament.js";
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 import * as stagesService from "../../stages/services/stages.service.js";
@@ -122,7 +119,8 @@ export const create = async (body) => {
     maps: Array.isArray(body.maps) ? body.maps.filter(Boolean) : [],
     maxTeams: body.maxTeams ?? 60,
     stagesCount,
-    status: TOURNAMENT_STATUS.DRAFT,
+    status: TOURNAMENT_STATUS.PENDING,
+    currentStage: 1,
   });
 
   await createStagesForTournament(t._id, stagesCount);
@@ -142,8 +140,8 @@ export const update = async (id, body) => {
     if (!Object.values(TOURNAMENT_MODE).includes(body.mode)) {
       throw new ApiError(400, "Noto'g'ri o'yin rejimi");
     }
-    if (t.status !== TOURNAMENT_STATUS.DRAFT) {
-      throw new ApiError(400, "Rejimni faqat qoralama turnirda o'zgartirish mumkin");
+    if (t.status !== TOURNAMENT_STATUS.PENDING) {
+      throw new ApiError(400, "Rejimni faqat kutilayotgan turnirda o'zgartirish mumkin");
     }
     t.mode = body.mode;
   }
@@ -158,8 +156,8 @@ export const update = async (id, body) => {
   if (body.stagesCount !== undefined) {
     const nextCount = ensureStagesCount(body.stagesCount);
     if (nextCount !== t.stagesCount) {
-      if (t.status !== TOURNAMENT_STATUS.DRAFT) {
-        throw new ApiError(400, "Bosqichlar sonini faqat qoralama turnirda o'zgartirish mumkin");
+      if (t.status !== TOURNAMENT_STATUS.PENDING) {
+        throw new ApiError(400, "Bosqichlar sonini faqat kutilayotgan turnirda o'zgartirish mumkin");
       }
       t.stagesCount = nextCount;
       await t.save();
@@ -189,8 +187,7 @@ export const remove = async (id) => {
 
 // Status transitions that should auto-notify users via a broadcast.
 const NOTIFY_ON = {
-  [TOURNAMENT_STATUS.ANNOUNCED]: { target: BROADCAST_TARGET.ALL, ids: [] },
-  [TOURNAMENT_STATUS.REGISTRATION]: { target: BROADCAST_TARGET.ALL, ids: [] },
+  [TOURNAMENT_STATUS.ONGOING]: { target: BROADCAST_TARGET.TOURNAMENT, ids: ["self"] },
   [TOURNAMENT_STATUS.FINISHED]: { target: BROADCAST_TARGET.TOURNAMENT, ids: ["self"] },
 };
 
@@ -217,25 +214,16 @@ const enqueueStatusBroadcast = async (tournament, next, currentUser) => {
   }
 };
 
-// Map a target status (stageN | final) to the stage `order` it represents.
-const stageOrderForStatus = (status, stagesCount) => {
-  if (status === TOURNAMENT_STATUS.FINAL) return stagesCount;
-  return stageNumberFromStatus(status);
-};
-
 export const changeStatus = async (id, next, currentUser) => {
   const t = await getRawById(id);
   if (!Object.values(TOURNAMENT_STATUS).includes(next)) {
     throw new ApiError(400, "Noto'g'ri status");
   }
-  if (!canTransition(t.status, next, t.stagesCount)) {
-    throw new ApiError(400, `${t.status} → ${next} o'tish ruxsat etilmagan`);
-  }
 
-  // registration → stage1: auto-fill the first stage with all registered teams.
+  // pending → ongoing: tournament starts, auto-fill stage 1 with all registered teams.
   if (
-    t.status === TOURNAMENT_STATUS.REGISTRATION &&
-    next === stageStatusFor(1, t.stagesCount)
+    t.status === TOURNAMENT_STATUS.PENDING &&
+    next === TOURNAMENT_STATUS.ONGOING
   ) {
     const regs = await TournamentRegistration.find({
       tournament: t._id,
@@ -243,6 +231,7 @@ export const changeStatus = async (id, next, currentUser) => {
     }).select("_id");
     const stage = await stagesService.getByTournamentAndOrder(t._id, 1);
     await stagesService.autoAssignGroups(stage._id, regs.map((r) => r._id));
+    t.currentStage = 1;
   }
 
   t.status = next;
@@ -253,28 +242,22 @@ export const changeStatus = async (id, next, currentUser) => {
   return withStages(t);
 };
 
-// Promote selected teams to the next stage and switch status atomically.
+// Promote selected teams to the next stage. Bumps currentStage; status stays ONGOING.
 export const promoteToNext = async (id, teamIds, currentUser) => {
   const t = await getRawById(id);
-  const currentOrder = stageOrderForStatus(t.status, t.stagesCount);
-  if (!currentOrder) {
+  if (t.status !== TOURNAMENT_STATUS.ONGOING) {
     throw new ApiError(400, "Turnir aktiv bosqichda emas");
   }
-  if (currentOrder >= t.stagesCount) {
+  if (t.currentStage >= t.stagesCount) {
     throw new ApiError(400, "Bu oxirgi bosqich, keyingisi yo'q");
   }
-  const nextStatus = stageStatusFor(currentOrder + 1, t.stagesCount);
-  if (!nextStatus || !canTransition(t.status, nextStatus, t.stagesCount)) {
-    throw new ApiError(400, "Keyingi bosqichga o'tib bo'lmaydi");
-  }
 
-  const nextStage = await stagesService.getByTournamentAndOrder(t._id, currentOrder + 1);
+  const nextOrder = t.currentStage + 1;
+  const nextStage = await stagesService.getByTournamentAndOrder(t._id, nextOrder);
   await stagesService.autoAssignGroups(nextStage._id, teamIds || []);
 
-  t.status = nextStatus;
+  t.currentStage = nextOrder;
   await t.save();
-
-  await enqueueStatusBroadcast(t, nextStatus, currentUser);
 
   return withStages(t);
 };
