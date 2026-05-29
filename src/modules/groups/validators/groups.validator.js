@@ -10,3 +10,8 @@ export const removeTeamSchema = z.object({
     teamId: z.string().min(1),
   }),
 });
+
+export const addTeamSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({ teamId: z.string().min(1) }),
+});

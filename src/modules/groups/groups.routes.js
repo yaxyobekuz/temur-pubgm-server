@@ -6,9 +6,11 @@ import { PERMISSIONS } from "../../constants/permissions.js";
 import {
   listSchema,
   removeTeamSchema,
+  addTeamSchema,
 } from "./validators/groups.validator.js";
 import list from "./handlers/list.handler.js";
 import removeTeam from "./handlers/removeTeam.handler.js";
+import addTeam from "./handlers/addTeam.handler.js";
 
 const router = Router();
 
@@ -18,6 +20,13 @@ router.get(
   requirePermission(PERMISSIONS.TOURNAMENTS_READ),
   validate(listSchema),
   list,
+);
+router.post(
+  "/:id/teams",
+  requireAuth,
+  requirePermission(PERMISSIONS.GROUPS_UPDATE),
+  validate(addTeamSchema),
+  addTeam,
 );
 router.delete(
   "/:id/teams/:teamId",
