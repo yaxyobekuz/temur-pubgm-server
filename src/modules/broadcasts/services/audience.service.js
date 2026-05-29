@@ -4,6 +4,7 @@ import TournamentRegistration, {
   REGISTRATION_STATUS,
 } from "../../../models/tournamentRegistration.model.js";
 import Group from "../../../models/group.model.js";
+import Team from "../../../models/team.model.js";
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 
 // Returns the unique set of tgIds matching the target.
@@ -12,6 +13,7 @@ import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 //   ROLE       - ids = role strings (e.g. ["player", "leader"])
 //   REGION     - ids = Region ObjectIds
 //   TOURNAMENT - ids = Tournament ObjectIds - leader + roster members of every registered team
+//   TEAM       - ids = Team ObjectIds - leader + every member of the team
 export const resolveAudience = async ({ type, ids = [] }) => {
   const tgIds = new Set();
 
@@ -71,6 +73,21 @@ export const resolveAudience = async ({ type, ids = [] }) => {
     for (const reg of regs) {
       for (const r of reg.roster || []) {
         if (r.user?.tgId) tgIds.add(r.user.tgId);
+      }
+    }
+    return [...tgIds];
+  }
+
+  if (type === BROADCAST_TARGET.TEAM) {
+    const teamIds = ids.filter(Boolean).map((s) => new mongoose.Types.ObjectId(s));
+    if (!teamIds.length) return [];
+    const teams = await Team.find({ _id: { $in: teamIds } }, "leader members")
+      .populate("leader", "tgId")
+      .populate("members", "tgId");
+    for (const team of teams) {
+      if (team.leader?.tgId) tgIds.add(team.leader.tgId);
+      for (const m of team.members || []) {
+        if (m?.tgId) tgIds.add(m.tgId);
       }
     }
     return [...tgIds];
