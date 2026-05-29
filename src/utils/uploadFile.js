@@ -67,7 +67,7 @@ export const saveImageFromUrl = async (remoteUrl) => {
   let resp;
   try {
     // Cap the download so a slow Telegram CDN can't hang the request indefinitely.
-    resp = await fetch(remoteUrl, { signal: AbortSignal.timeout(30_000) });
+    resp = await fetch(remoteUrl, { signal: AbortSignal.timeout(180_000) });
   } catch {
     throw new ApiError(400, "Rasmni yuklab bo'lmadi (vaqt tugadi)");
   }
