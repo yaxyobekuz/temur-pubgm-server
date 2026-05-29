@@ -3,11 +3,14 @@ import Region from "../../../models/region.model.js";
 import Team from "../../../models/team.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import { ROLES } from "../../../constants/roles.js";
+import { TOURNAMENT_STATUS } from "../../../constants/tournament.js";
 import { normalizePhone } from "../../../utils/phone.js";
 import * as usersService from "../../users/services/users.service.js";
 import * as teamsService from "../../teams/services/teams.service.js";
 import * as tournamentsService from "../../tournaments/services/tournaments.service.js";
 import * as registrationsService from "../../registrations/services/registrations.service.js";
+import * as helpLinksService from "../../helpLinks/services/helpLinks.service.js";
+import { saveImageFromUrl } from "../../../utils/uploadFile.js";
 
 export const registerOrLogin = async (body) => {
   const tgId = Number(body.tgId);
@@ -67,6 +70,15 @@ export const switchRole = async (tgId, newRole) => {
   return usersService.switchSelfRole(user, newRole);
 };
 
+export const switchRegion = async (tgId, regionId) => {
+  const user = await findByTgId(tgId);
+  const region = await Region.findById(regionId);
+  if (!region) throw new ApiError(404, "Mintaqa topilmadi");
+  user.region = region._id;
+  await user.save();
+  return user.populate("region");
+};
+
 export const getMyTeam = async (tgId) => {
   const user = await findByTgId(tgId);
   return teamsService.getMyTeam(user._id);
@@ -79,7 +91,11 @@ export const createTeam = async (tgId, body) => {
 
 export const updateOwnTeam = async (tgId, body) => {
   const user = await findByTgId(tgId);
-  return teamsService.updateOwn(user, body);
+  const patch = {};
+  if (body.name !== undefined) patch.name = body.name;
+  // A Telegram file URL → download + store locally, then set as logo.
+  if (body.logoUrl) patch.logo = await saveImageFromUrl(body.logoUrl);
+  return teamsService.updateOwn(user, patch);
 };
 
 export const regenerateOwnInvite = async (tgId) => {
@@ -106,7 +122,7 @@ export const acceptInvite = async (tgId, inviteCode) => {
 
 export const listOpenTournaments = async () => {
   const { items } = await tournamentsService.list({
-    status: "registration",
+    status: TOURNAMENT_STATUS.PENDING,
     page: 1,
     limit: 100,
   });
@@ -115,6 +131,12 @@ export const listOpenTournaments = async () => {
 
 export const getTournamentForBot = async (id) => {
   return tournamentsService.getById(id);
+};
+
+// --- Help links (bot-only) -------------------------------------------------
+
+export const listHelpLinks = async () => {
+  return helpLinksService.listActive();
 };
 
 export const registerForTournament = async (tgId, tournamentId, roster) => {

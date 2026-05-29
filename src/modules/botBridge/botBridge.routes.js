@@ -4,6 +4,7 @@ import {
   registerOrLoginSchema,
   getMeSchema,
   switchRoleSchema,
+  switchRegionSchema,
   getTeamSchema,
   createTeamSchema,
   updateTeamSchema,
@@ -17,6 +18,7 @@ import {
 import registerOrLogin from "./handlers/registerOrLogin.handler.js";
 import getMe from "./handlers/getMe.handler.js";
 import switchRole from "./handlers/switchRole.handler.js";
+import switchRegion from "./handlers/switchRegion.handler.js";
 import {
   getTeam,
   createTeam,
@@ -32,6 +34,7 @@ import {
   register as registerTournament,
   myRegistrations,
 } from "./handlers/tournaments.handler.js";
+import { listHelpLinks } from "./handlers/helpLinks.handler.js";
 
 // All routes here are mounted under `/api/bot/*` and protected by the botAuth middleware.
 const router = Router();
@@ -39,6 +42,7 @@ const router = Router();
 router.post("/auth/register-or-login", validate(registerOrLoginSchema), registerOrLogin);
 router.get("/users/me", validate(getMeSchema), getMe);
 router.post("/users/role", validate(switchRoleSchema), switchRole);
+router.post("/users/region", validate(switchRegionSchema), switchRegion);
 
 router.get("/teams", validate(getTeamSchema), getTeam);
 router.post("/teams", validate(createTeamSchema), createTeam);
@@ -56,5 +60,7 @@ router.post(
   registerTournament,
 );
 router.get("/registrations", validate(myRegistrationsSchema), myRegistrations);
+
+router.get("/help-links", listHelpLinks);
 
 export default router;

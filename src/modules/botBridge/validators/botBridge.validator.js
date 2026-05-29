@@ -26,6 +26,13 @@ export const switchRoleSchema = z.object({
   }),
 });
 
+export const switchRegionSchema = z.object({
+  body: z.object({
+    tgId: tgIdSchema,
+    regionId: z.string().min(1),
+  }),
+});
+
 export const getTeamSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
 });
@@ -44,10 +51,13 @@ export const updateTeamSchema = z.object({
       tgId: tgIdSchema,
       name: z.string().min(2).max(60).optional(),
       logo: z.string().max(500).optional(),
+      // Remote Telegram file URL - server downloads and stores it.
+      logoUrl: z.string().url().max(1000).optional(),
     })
-    .refine((b) => b.name !== undefined || b.logo !== undefined, {
-      message: "Hech bo'lmaganda bitta maydon kerak",
-    }),
+    .refine(
+      (b) => b.name !== undefined || b.logo !== undefined || b.logoUrl !== undefined,
+      { message: "Hech bo'lmaganda bitta maydon kerak" },
+    ),
 });
 
 export const tgOnlySchema = z.object({
