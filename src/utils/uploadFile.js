@@ -64,7 +64,13 @@ export const saveImageFromUrl = async (remoteUrl) => {
   if (!/^https?:\/\//i.test(remoteUrl || "")) {
     throw new ApiError(400, "Rasm havolasi noto'g'ri");
   }
-  const resp = await fetch(remoteUrl);
+  let resp;
+  try {
+    // Cap the download so a slow Telegram CDN can't hang the request indefinitely.
+    resp = await fetch(remoteUrl, { signal: AbortSignal.timeout(30_000) });
+  } catch {
+    throw new ApiError(400, "Rasmni yuklab bo'lmadi (vaqt tugadi)");
+  }
   if (!resp.ok) throw new ApiError(400, "Rasmni yuklab bo'lmadi");
 
   const buf = Buffer.from(await resp.arrayBuffer());
