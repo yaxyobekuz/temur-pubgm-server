@@ -27,6 +27,11 @@ export const PERMISSIONS = Object.freeze({
   BROADCASTS_CREATE: "broadcasts.create",
   BROADCASTS_UPDATE: "broadcasts.update",
   BROADCASTS_DELETE: "broadcasts.delete",
+
+  HELP_LINKS_READ: "help_links.read",
+  HELP_LINKS_CREATE: "help_links.create",
+  HELP_LINKS_UPDATE: "help_links.update",
+  HELP_LINKS_DELETE: "help_links.delete",
 });
 
 export const PERMISSION_LABELS = {
@@ -57,4 +62,9 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.BROADCASTS_CREATE]: { label: "Xabarnoma yaratish", group: "broadcasts" },
   [PERMISSIONS.BROADCASTS_UPDATE]: { label: "Xabarnomani tahrirlash", group: "broadcasts" },
   [PERMISSIONS.BROADCASTS_DELETE]: { label: "Xabarnomani o'chirish", group: "broadcasts" },
+
+  [PERMISSIONS.HELP_LINKS_READ]: { label: "Yordam havolalarini ko'rish", group: "help_links" },
+  [PERMISSIONS.HELP_LINKS_CREATE]: { label: "Yordam havolasi qo'shish", group: "help_links" },
+  [PERMISSIONS.HELP_LINKS_UPDATE]: { label: "Yordam havolasini tahrirlash", group: "help_links" },
+  [PERMISSIONS.HELP_LINKS_DELETE]: { label: "Yordam havolasini o'chirish", group: "help_links" },
 };
