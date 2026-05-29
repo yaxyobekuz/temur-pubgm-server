@@ -70,6 +70,25 @@ export const update = async (id, body) => {
   return user;
 };
 
+// Self profile edit for the logged-in user (firstName, lastName, username).
+export const updateSelfProfile = async (userId, body) => {
+  const user = await User.findById(userId);
+  if (!user) throw new ApiError(404, "Foydalanuvchi topilmadi");
+
+  if (body.firstName !== undefined) user.firstName = body.firstName.trim();
+  if (body.lastName !== undefined) user.lastName = body.lastName.trim();
+
+  if (body.username !== undefined) {
+    const username = body.username.trim().toLowerCase();
+    const taken = await User.exists({ username, _id: { $ne: user._id } });
+    if (taken) throw new ApiError(409, "Bu login band");
+    user.username = username;
+  }
+
+  await user.save();
+  return user;
+};
+
 export const softRemove = async (id) => {
   const user = await getById(id);
   if (user.role === ROLES.OWNER) {

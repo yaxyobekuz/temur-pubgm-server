@@ -7,16 +7,25 @@ import { ROLES } from "../../constants/roles.js";
 import { PERMISSIONS } from "../../constants/permissions.js";
 import { listSchema } from "./validators/list.validator.js";
 import { updateSchema, idSchema } from "./validators/update.validator.js";
+import { updateMeSchema } from "./validators/updateMe.validator.js";
 import { meSwitchRoleSchema } from "./validators/meSwitchRole.validator.js";
 import { changePasswordSchema } from "./validators/changePassword.validator.js";
 import list from "./handlers/list.handler.js";
 import getById from "./handlers/getById.handler.js";
 import update from "./handlers/update.handler.js";
+import updateMe from "./handlers/updateMe.handler.js";
 import remove from "./handlers/remove.handler.js";
 import meSwitchRole from "./handlers/meSwitchRole.handler.js";
 import changePassword from "./handlers/changePassword.handler.js";
 
 const router = Router();
+
+router.patch(
+  "/me",
+  requireAuth,
+  validate(updateMeSchema),
+  updateMe,
+);
 
 router.post(
   "/me/role",
