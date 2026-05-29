@@ -102,7 +102,7 @@ const ensureSponsorMembership = async ({ tournament, tgIds }) => {
 export const register = async ({ tournamentId, leaderUser, roster }) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new ApiError(404, "Turnir topilmadi");
-  if (tournament.status !== TOURNAMENT_STATUS.REGISTRATION) {
+  if (tournament.status !== TOURNAMENT_STATUS.PENDING) {
     throw new ApiError(400, "Bu turnir hozir ro'yxat qabul qilmaydi");
   }
 
@@ -188,6 +188,21 @@ export const kick = async (id) => {
   const r = await getById(id);
   if (r.status === REGISTRATION_STATUS.KICKED) return r;
   r.status = REGISTRATION_STATUS.KICKED;
+  await r.save();
+  return r;
+};
+
+// Undo a kick: bring a kicked team back into the tournament.
+export const restore = async (id) => {
+  const r = await getById(id);
+  if (r.status === REGISTRATION_STATUS.REGISTERED) return r;
+  // Enforce the one-active rule: the team must not be committed elsewhere.
+  const teamId = r.team?._id || r.team;
+  const existingActive = await findActiveRegistration(teamId);
+  if (existingActive && String(existingActive._id) !== String(r._id)) {
+    throw new ApiError(409, "Komanda allaqachon boshqa turnirda ro'yxatdan o'tgan");
+  }
+  r.status = REGISTRATION_STATUS.REGISTERED;
   await r.save();
   return r;
 };

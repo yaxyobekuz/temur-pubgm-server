@@ -10,6 +10,7 @@ import {
 import list from "./handlers/list.handler.js";
 import getById from "./handlers/getById.handler.js";
 import kick from "./handlers/kick.handler.js";
+import restore from "./handlers/restore.handler.js";
 
 const router = Router();
 
@@ -33,6 +34,13 @@ router.post(
   requirePermission(PERMISSIONS.REGISTRATIONS_UPDATE),
   validate(idSchema),
   kick,
+);
+router.post(
+  "/:id/restore",
+  requireAuth,
+  requirePermission(PERMISSIONS.REGISTRATIONS_UPDATE),
+  validate(idSchema),
+  restore,
 );
 
 export default router;
