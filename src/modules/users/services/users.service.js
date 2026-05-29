@@ -4,6 +4,7 @@ import Team from "../../../models/team.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import { ROLES, SELF_SWITCHABLE_ROLES } from "../../../constants/roles.js";
 import { normalizePhone } from "../../../utils/phone.js";
+import { hashPassword, comparePassword } from "../../../helpers/password.helper.js";
 import * as teamsService from "../../teams/services/teams.service.js";
 import {
   findActiveRegistration,
@@ -123,6 +124,21 @@ export const switchSelfRole = async (user, newRole) => {
   user.role = newRole;
   await user.save();
   return user;
+};
+
+// Self password change for panel users (owner/admin). Verifies the current password first.
+export const changeOwnPassword = async (userId, { currentPassword, newPassword }) => {
+  const user = await User.findById(userId).select("+passwordHash");
+  if (!user) throw new ApiError(404, "Foydalanuvchi topilmadi");
+  if (!user.passwordHash) {
+    throw new ApiError(400, "Bu foydalanuvchida parol o'rnatilmagan");
+  }
+  const ok = await comparePassword(currentPassword, user.passwordHash);
+  if (!ok) throw new ApiError(400, "Joriy parol noto'g'ri");
+
+  user.passwordHash = await hashPassword(newPassword);
+  await user.save();
+  return { success: true };
 };
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

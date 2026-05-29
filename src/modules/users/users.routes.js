@@ -8,11 +8,13 @@ import { PERMISSIONS } from "../../constants/permissions.js";
 import { listSchema } from "./validators/list.validator.js";
 import { updateSchema, idSchema } from "./validators/update.validator.js";
 import { meSwitchRoleSchema } from "./validators/meSwitchRole.validator.js";
+import { changePasswordSchema } from "./validators/changePassword.validator.js";
 import list from "./handlers/list.handler.js";
 import getById from "./handlers/getById.handler.js";
 import update from "./handlers/update.handler.js";
 import remove from "./handlers/remove.handler.js";
 import meSwitchRole from "./handlers/meSwitchRole.handler.js";
+import changePassword from "./handlers/changePassword.handler.js";
 
 const router = Router();
 
@@ -21,6 +23,13 @@ router.post(
   requireAuth,
   validate(meSwitchRoleSchema),
   meSwitchRole,
+);
+
+router.post(
+  "/me/password",
+  requireAuth,
+  validate(changePasswordSchema),
+  changePassword,
 );
 
 router.get(
