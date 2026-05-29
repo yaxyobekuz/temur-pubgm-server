@@ -93,8 +93,11 @@ export const updateOwnTeam = async (tgId, body) => {
   const user = await findByTgId(tgId);
   const patch = {};
   if (body.name !== undefined) patch.name = body.name;
-  // A Telegram file URL → download + store locally, then set as logo.
-  if (body.logoUrl) patch.logo = await saveImageFromUrl(body.logoUrl);
+  // A Telegram file URL → download + store locally; cache the file_id for fast resends.
+  if (body.logoUrl) {
+    patch.logo = await saveImageFromUrl(body.logoUrl);
+    if (body.logoFileId) patch.logoFileId = body.logoFileId;
+  }
   return teamsService.updateOwn(user, patch);
 };
 

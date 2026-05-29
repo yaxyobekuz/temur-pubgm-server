@@ -6,6 +6,8 @@ const teamSchema = new mongoose.Schema(
   {
     name: { type: String, trim: true, required: true },
     logo: { type: String, trim: true, default: "" },
+    // Telegram file_id cache - lets the bot resend the logo instantly (no re-upload).
+    logoFileId: { type: String, trim: true, default: "" },
     leader: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

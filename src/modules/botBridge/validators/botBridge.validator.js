@@ -53,6 +53,8 @@ export const updateTeamSchema = z.object({
       logo: z.string().max(500).optional(),
       // Remote Telegram file URL - server downloads and stores it.
       logoUrl: z.string().url().max(1000).optional(),
+      // Telegram file_id cache for instant resends.
+      logoFileId: z.string().max(200).optional(),
     })
     .refine(
       (b) => b.name !== undefined || b.logo !== undefined || b.logoUrl !== undefined,

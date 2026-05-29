@@ -63,19 +63,24 @@ export const getMyTeam = async (userId) => {
     .populate("members", "firstName lastName username tgUsername gameNickname");
 };
 
-// Replace team.logo, deleting the previously stored file if it changed.
-const swapLogo = async (team, nextLogo) => {
+// Replace team.logo (and its Telegram file_id cache), deleting the old file if it changed.
+// fileId defaults to "" so a web-panel logo change invalidates the stale cache and the bot re-caches.
+const swapLogo = async (team, nextLogo, nextFileId = "") => {
   const next = (nextLogo || "").trim();
-  if (next === team.logo) return;
+  if (next === team.logo) {
+    if (nextFileId) team.logoFileId = nextFileId.trim();
+    return;
+  }
   const old = team.logo;
   team.logo = next;
+  team.logoFileId = (nextFileId || "").trim();
   if (old) await deleteUploadByUrl(old);
 };
 
 export const adminUpdate = async (id, body) => {
   const team = await getById(id);
   if (body.name !== undefined) team.name = body.name.trim();
-  if (body.logo !== undefined) await swapLogo(team, body.logo);
+  if (body.logo !== undefined) await swapLogo(team, body.logo, body.logoFileId);
   if (body.isActive !== undefined) team.isActive = !!body.isActive;
   await team.save();
   return team;
@@ -115,7 +120,7 @@ export const updateOwn = async (leaderUser, body) => {
   const team = await Team.findOne({ leader: leaderUser._id });
   if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
   if (body.name !== undefined) team.name = body.name.trim();
-  if (body.logo !== undefined) await swapLogo(team, body.logo);
+  if (body.logo !== undefined) await swapLogo(team, body.logo, body.logoFileId);
   await team.save();
   return team;
 };
