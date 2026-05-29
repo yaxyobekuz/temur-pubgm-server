@@ -200,7 +200,7 @@ const enqueueStatusBroadcast = async (tournament, next, currentUser) => {
     const body =
       next === TOURNAMENT_STATUS.FINISHED
         ? `<b>${tournament.title}</b> turnirining yakuni e'lon qilindi. Natijalar tez orada chiqadi.`
-        : `<b>${tournament.title}</b> - yangi status: ${TOURNAMENT_STATUS_LABELS[next] || next}.`;
+        : `<b>${tournament.title}</b> - ${TOURNAMENT_STATUS_LABELS[next] || next}.`;
     const target = {
       type: cfg.target,
       ids: cfg.ids[0] === "self" ? [tournament._id.toString()] : cfg.ids,
