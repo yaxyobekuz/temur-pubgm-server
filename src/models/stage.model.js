@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-// Minimal "stage marker" — tournament + order raqami. UI'da oxirgi order = "Final".
+// Minimal "stage marker" - tournament + order raqami. UI'da oxirgi order = "Final".
 const stageSchema = new mongoose.Schema(
   {
     tournament: {
