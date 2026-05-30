@@ -116,7 +116,8 @@ export const myRegistrationsSchema = z.object({
 
 export const resolveSecretGroupSchema = z.object({
   body: z.object({
-    inviteHash: z.string().min(1),
+    // Bot inviteHash topa olmasa ham guruhni keshlash uchun so'rov yuboradi.
+    inviteHash: z.string().optional(),
     chatId: z.union([z.string().min(1), z.number()]),
     title: z.string().max(200).optional(),
   }),
