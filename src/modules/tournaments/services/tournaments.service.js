@@ -14,6 +14,7 @@ import {
   MAX_STAGES_COUNT,
 } from "../../../constants/tournament.js";
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
+import { parseInviteHash } from "../../../utils/telegram.js";
 import * as stagesService from "../../stages/services/stages.service.js";
 import logger from "../../../config/logger.js";
 
@@ -289,4 +290,47 @@ export const removeSponsorChannel = async (id, channelId) => {
   }
   await t.save();
   return withStages(t);
+};
+
+// Secret group: the leader must join it before registering. chatId is auto-captured
+// by the bot (my_chat_member) or entered manually as a fallback.
+export const setSecretGroup = async (id, body) => {
+  const t = await getRawById(id);
+  const url = body.url.trim();
+  const chatId = body.chatId?.trim() || "";
+  const prev = t.secretGroup || {};
+  // Keep a previously resolved chatId only if the url (group) hasn't changed.
+  const keepChatId = !chatId && prev.url === url ? prev.chatId : chatId;
+  t.secretGroup = {
+    url,
+    chatId: keepChatId || "",
+    title: body.title?.trim() || (prev.url === url ? prev.title : "") || "",
+    resolvedAt: keepChatId ? prev.resolvedAt || new Date() : null,
+  };
+  await t.save();
+  return withStages(t);
+};
+
+export const clearSecretGroup = async (id) => {
+  const t = await getRawById(id);
+  t.secretGroup = {};
+  await t.save();
+  return withStages(t);
+};
+
+// Bot auto-resolution: find the tournament whose secretGroup.url invite hash matches,
+// and store the captured chatId + title. Silent no-op if no match.
+export const resolveSecretGroupByInvite = async ({ inviteHash, chatId, title }) => {
+  if (!inviteHash || !chatId) return null;
+  const target = String(inviteHash).toLowerCase();
+  const candidates = await Tournament.find({ "secretGroup.url": { $ne: "" } });
+  const t = candidates.find(
+    (c) => (parseInviteHash(c.secretGroup?.url) || "").toLowerCase() === target,
+  );
+  if (!t) return null;
+  t.secretGroup.chatId = String(chatId);
+  if (title) t.secretGroup.title = title;
+  t.secretGroup.resolvedAt = new Date();
+  await t.save();
+  return t;
 };

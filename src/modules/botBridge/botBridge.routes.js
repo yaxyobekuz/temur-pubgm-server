@@ -14,6 +14,7 @@ import {
   tournamentIdSchema,
   registerTournamentSchema,
   myRegistrationsSchema,
+  resolveSecretGroupSchema,
 } from "./validators/botBridge.validator.js";
 import registerOrLogin from "./handlers/registerOrLogin.handler.js";
 import getMe from "./handlers/getMe.handler.js";
@@ -33,6 +34,7 @@ import {
   getTournament,
   register as registerTournament,
   myRegistrations,
+  resolveSecretGroup,
 } from "./handlers/tournaments.handler.js";
 import { listHelpLinks } from "./handlers/helpLinks.handler.js";
 
@@ -60,6 +62,11 @@ router.post(
   registerTournament,
 );
 router.get("/registrations", validate(myRegistrationsSchema), myRegistrations);
+router.post(
+  "/secret-group/resolve",
+  validate(resolveSecretGroupSchema),
+  resolveSecretGroup,
+);
 
 router.get("/help-links", listHelpLinks);
 

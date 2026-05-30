@@ -99,6 +99,30 @@ const ensureSponsorMembership = async ({ tournament, tgIds }) => {
   }
 };
 
+// Secret group: only the leader must be a member. chatId is auto-captured by the bot.
+const ensureSecretGroupMembership = async ({ tournament, leaderTgId }) => {
+  const sg = tournament.secretGroup;
+  if (!sg || !sg.url) return { ok: true }; // no secret group configured
+  if (!sg.chatId) {
+    // The group exists but the bot hasn't captured the chatId yet (not added as admin).
+    throw new ApiError(503, "Maxfiy guruh hali to'liq sozlanmagan, keyinroq urinib ko'ring");
+  }
+  if (!leaderTgId) return { ok: false, group: { title: sg.title, url: sg.url } };
+
+  try {
+    const map = await botClient.checkMembership({
+      tgIds: [leaderTgId],
+      chatIds: [sg.chatId],
+    });
+    const isMember = map?.[leaderTgId]?.[sg.chatId] === true;
+    return isMember
+      ? { ok: true }
+      : { ok: false, group: { title: sg.title, url: sg.url } };
+  } catch (err) {
+    throw new ApiError(503, "Maxfiy guruhni tekshirib bo'lmadi (bot bilan aloqa yo'q)");
+  }
+};
+
 export const register = async ({ tournamentId, leaderUser, roster }) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new ApiError(404, "Turnir topilmadi");
@@ -135,6 +159,13 @@ export const register = async ({ tournamentId, leaderUser, roster }) => {
   const sub = await ensureSponsorMembership({ tournament, tgIds });
   if (!sub.ok) {
     throw new ApiError(403, "Quyidagi kanallarga obuna bo'ling", { details: sub.missing });
+  }
+
+  // Secret group: leader-only membership check.
+  const leaderTgId = users.find((u) => String(u._id) === String(leaderUser._id))?.tgId;
+  const sg = await ensureSecretGroupMembership({ tournament, leaderTgId });
+  if (!sg.ok) {
+    throw new ApiError(403, "Maxfiy guruhga qo'shiling", { secretGroup: sg.group });
   }
 
   // Capacity check: tournament-level (Phase 2 maxTeams).

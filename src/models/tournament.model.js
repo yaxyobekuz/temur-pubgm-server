@@ -17,6 +17,18 @@ const sponsorChannelSchema = new mongoose.Schema(
   { _id: true, timestamps: false },
 );
 
+// Per-tournament private group the team leader must join before registering.
+// chatId is auto-captured by the bot when it is made an admin (or entered manually).
+const secretGroupSchema = new mongoose.Schema(
+  {
+    url: { type: String, trim: true, default: "" },
+    chatId: { type: String, trim: true, default: "" },
+    title: { type: String, trim: true, default: "" },
+    resolvedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 const tournamentSchema = new mongoose.Schema(
   {
     title: { type: String, trim: true, required: true },
@@ -39,6 +51,7 @@ const tournamentSchema = new mongoose.Schema(
     // Which stage (bosqich) the tournament is currently in; decoupled from status.
     currentStage: { type: Number, min: 1, default: 1 },
     sponsorChannels: [sponsorChannelSchema],
+    secretGroup: { type: secretGroupSchema, default: () => ({}) },
     maps: [{ type: String, trim: true }],
     maxTeams: { type: Number, min: 1, default: 60 },
     stagesCount: {

@@ -136,6 +136,14 @@ export const getTournamentForBot = async (id) => {
   return tournamentsService.getById(id);
 };
 
+export const resolveSecretGroup = async ({ inviteHash, chatId, title }) => {
+  return tournamentsService.resolveSecretGroupByInvite({
+    inviteHash,
+    chatId: String(chatId),
+    title,
+  });
+};
+
 // --- Help links (bot-only) -------------------------------------------------
 
 export const listHelpLinks = async () => {

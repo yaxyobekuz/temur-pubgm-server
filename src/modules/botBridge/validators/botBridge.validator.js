@@ -106,3 +106,11 @@ export const registerTournamentSchema = z.object({
 export const myRegistrationsSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
 });
+
+export const resolveSecretGroupSchema = z.object({
+  body: z.object({
+    inviteHash: z.string().min(1),
+    chatId: z.union([z.string().min(1), z.number()]),
+    title: z.string().max(200).optional(),
+  }),
+});
