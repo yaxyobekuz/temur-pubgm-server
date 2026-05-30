@@ -28,8 +28,3 @@ export const myRegistrations = asyncHandler(async (req, res) => {
   const items = await botBridge.myRegistrations(req.query.tgId);
   res.json({ success: true, data: items });
 });
-
-export const resolveSecretGroup = asyncHandler(async (req, res) => {
-  const t = await botBridge.resolveSecretGroup(req.body);
-  res.json({ success: true, data: { matched: !!t } });
-});

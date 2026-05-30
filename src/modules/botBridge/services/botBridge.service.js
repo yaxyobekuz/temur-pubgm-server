@@ -146,15 +146,6 @@ export const getTournamentForBot = async (id) => {
   return tournamentsService.getById(id);
 };
 
-export const resolveSecretGroup = async ({ inviteHash, chatId, title }) => {
-  // Guruhni har doim keshlaydi (inviteHash bo'lmasa ham), so'ng turnirga moslashtiradi.
-  return tournamentsService.upsertBotGroup({
-    inviteHash,
-    chatId: String(chatId),
-    title,
-  });
-};
-
 // --- Help links (bot-only) -------------------------------------------------
 
 export const listHelpLinks = async () => {

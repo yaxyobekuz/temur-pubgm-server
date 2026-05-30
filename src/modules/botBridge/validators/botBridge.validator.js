@@ -113,12 +113,3 @@ export const registerTournamentSchema = z.object({
 export const myRegistrationsSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
 });
-
-export const resolveSecretGroupSchema = z.object({
-  body: z.object({
-    // Bot inviteHash topa olmasa ham guruhni keshlash uchun so'rov yuboradi.
-    inviteHash: z.string().optional(),
-    chatId: z.union([z.string().min(1), z.number()]),
-    title: z.string().max(200).optional(),
-  }),
-});

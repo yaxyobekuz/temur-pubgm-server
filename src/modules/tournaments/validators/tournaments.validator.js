@@ -100,7 +100,7 @@ export const setSecretGroupSchema = z.object({
   body: z
     .object({
       url: z.string().min(3).max(500),
-      chatId: z.string().max(60).optional(),
+      chatId: z.string().min(1, "Chat ID majburiy").max(60),
       title: z.string().max(200).optional(),
     })
     .superRefine((data, ctx) => {

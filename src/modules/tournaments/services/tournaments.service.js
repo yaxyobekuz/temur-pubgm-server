@@ -14,8 +14,6 @@ import {
   MAX_STAGES_COUNT,
 } from "../../../constants/tournament.js";
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
-import BotGroup from "../../../models/botGroup.model.js";
-import { parseInviteHash } from "../../../utils/telegram.js";
 import * as stagesService from "../../stages/services/stages.service.js";
 import logger from "../../../config/logger.js";
 
@@ -293,34 +291,15 @@ export const removeSponsorChannel = async (id, channelId) => {
   return withStages(t);
 };
 
-// Secret group: the leader must join it before registering. chatId is auto-captured
-// by the bot (my_chat_member) or entered manually as a fallback.
+// Secret group: the leader must join it before registering. Both the invite url and
+// the numeric chatId are required; the admin reads the chatId via the bot's /id command.
 export const setSecretGroup = async (id, body) => {
   const t = await getRawById(id);
-  const url = body.url.trim();
-  const chatId = body.chatId?.trim() || "";
-  const prev = t.secretGroup || {};
-  // Keep a previously resolved chatId only if the url (group) hasn't changed.
-  let resolvedChatId = !chatId && prev.url === url ? prev.chatId : chatId;
-  let resolvedTitle = body.title?.trim() || (prev.url === url ? prev.title : "") || "";
-
-  // Bot avval qo'shilgan bo'lsa - guruh keshdan inviteHash bo'yicha topiladi.
-  if (!resolvedChatId && url) {
-    const hash = parseInviteHash(url);
-    if (hash) {
-      const g = await BotGroup.findOne({ inviteHash: hash.toLowerCase() });
-      if (g) {
-        resolvedChatId = g.chatId;
-        if (!resolvedTitle) resolvedTitle = g.title;
-      }
-    }
-  }
-
   t.secretGroup = {
-    url,
-    chatId: resolvedChatId || "",
-    title: resolvedTitle,
-    resolvedAt: resolvedChatId ? prev.resolvedAt || new Date() : null,
+    url: body.url.trim(),
+    chatId: body.chatId.trim(),
+    title: body.title?.trim() || "",
+    resolvedAt: new Date(),
   };
   await t.save();
   return withStages(t);
@@ -331,35 +310,4 @@ export const clearSecretGroup = async (id) => {
   t.secretGroup = {};
   await t.save();
   return withStages(t);
-};
-
-// Bot guruhga qo'shilganda: guruhni keshlaydi (chatId bo'yicha upsert) va darhol
-// turnirga moslashtirishga urinadi. Havola keyin yozilsa setSecretGroup keshdan topadi.
-export const upsertBotGroup = async ({ chatId, inviteHash, title }) => {
-  if (!chatId) return null;
-  const hash = (inviteHash || "").toLowerCase();
-  await BotGroup.findOneAndUpdate(
-    { chatId: String(chatId) },
-    { chatId: String(chatId), inviteHash: hash, title: title || "" },
-    { upsert: true, new: true, setDefaultsOnInsert: true },
-  );
-  if (!hash) return null;
-  return resolveSecretGroupByInvite({ inviteHash: hash, chatId, title });
-};
-
-// Bot auto-resolution: find the tournament whose secretGroup.url invite hash matches,
-// and store the captured chatId + title. Silent no-op if no match.
-export const resolveSecretGroupByInvite = async ({ inviteHash, chatId, title }) => {
-  if (!inviteHash || !chatId) return null;
-  const target = String(inviteHash).toLowerCase();
-  const candidates = await Tournament.find({ "secretGroup.url": { $ne: "" } });
-  const t = candidates.find(
-    (c) => (parseInviteHash(c.secretGroup?.url) || "").toLowerCase() === target,
-  );
-  if (!t) return null;
-  t.secretGroup.chatId = String(chatId);
-  if (title) t.secretGroup.title = title;
-  t.secretGroup.resolvedAt = new Date();
-  await t.save();
-  return t;
 };

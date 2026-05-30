@@ -15,11 +15,3 @@ export const getTelegramChannelIdentifier = (channel) => {
   if (channel.chatId) return channel.chatId;
   return parsePublicTelegramUsername(channel.url);
 };
-
-// Extract the invite hash from a private link: t.me/+AbC123 or t.me/joinchat/AbC123 -> "AbC123".
-export const parseInviteHash = (url) => {
-  const m = (typeof url === "string" ? url.trim() : "").match(
-    /t\.me\/(?:\+|joinchat\/)([A-Za-z0-9_-]+)/i,
-  );
-  return m ? m[1] : null;
-};
