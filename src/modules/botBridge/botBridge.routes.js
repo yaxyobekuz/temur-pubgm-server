@@ -5,6 +5,7 @@ import {
   getMeSchema,
   switchRoleSchema,
   switchRegionSchema,
+  updateContactUsernameSchema,
   getTeamSchema,
   createTeamSchema,
   updateTeamSchema,
@@ -20,6 +21,7 @@ import registerOrLogin from "./handlers/registerOrLogin.handler.js";
 import getMe from "./handlers/getMe.handler.js";
 import switchRole from "./handlers/switchRole.handler.js";
 import switchRegion from "./handlers/switchRegion.handler.js";
+import updateContactUsername from "./handlers/updateContactUsername.handler.js";
 import {
   getTeam,
   createTeam,
@@ -45,6 +47,11 @@ router.post("/auth/register-or-login", validate(registerOrLoginSchema), register
 router.get("/users/me", validate(getMeSchema), getMe);
 router.post("/users/role", validate(switchRoleSchema), switchRole);
 router.post("/users/region", validate(switchRegionSchema), switchRegion);
+router.patch(
+  "/users/contact-username",
+  validate(updateContactUsernameSchema),
+  updateContactUsername,
+);
 
 router.get("/teams", validate(getTeamSchema), getTeam);
 router.post("/teams", validate(createTeamSchema), createTeam);

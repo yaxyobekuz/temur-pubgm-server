@@ -5,6 +5,7 @@ import ApiError from "../../../utils/ApiError.js";
 import { ROLES } from "../../../constants/roles.js";
 import { TOURNAMENT_STATUS } from "../../../constants/tournament.js";
 import { normalizePhone } from "../../../utils/phone.js";
+import { parseTelegramUsername } from "../../../utils/telegramUsername.js";
 import * as usersService from "../../users/services/users.service.js";
 import * as teamsService from "../../teams/services/teams.service.js";
 import * as tournamentsService from "../../tournaments/services/tournaments.service.js";
@@ -77,6 +78,15 @@ export const switchRegion = async (tgId, regionId) => {
   user.region = region._id;
   await user.save();
   return user.populate("region");
+};
+
+export const updateContactUsername = async (tgId, raw) => {
+  const user = await findByTgId(tgId);
+  const username = parseTelegramUsername(raw);
+  if (!username) throw new ApiError(400, "Username noto'g'ri. Masalan: @username");
+  user.contactUsername = username;
+  await user.save();
+  return user;
 };
 
 export const getMyTeam = async (tgId) => {

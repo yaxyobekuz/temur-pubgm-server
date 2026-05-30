@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema(
     gameNickname: { type: String, trim: true, default: "" },
     region: { type: mongoose.Schema.Types.ObjectId, ref: "Region", default: null },
     contactPhone: { type: String, trim: true, default: "" },
+    // Manually entered contact handle (independent of the auto-captured tgUsername).
+    contactUsername: { type: String, trim: true, lowercase: true, default: "" },
   },
   { timestamps: true },
 );

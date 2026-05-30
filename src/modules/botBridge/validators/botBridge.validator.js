@@ -33,6 +33,13 @@ export const switchRegionSchema = z.object({
   }),
 });
 
+export const updateContactUsernameSchema = z.object({
+  body: z.object({
+    tgId: tgIdSchema,
+    contactUsername: z.string().min(1).max(100),
+  }),
+});
+
 export const getTeamSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
 });
