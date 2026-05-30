@@ -35,7 +35,7 @@ export const list = async ({ role, search, page = 1, limit = 20 }) => {
 };
 
 export const getById = async (id) => {
-  const user = await User.findById(id);
+  const user = await User.findById(id).populate("region", "name gmtOffset");
   if (!user) throw new ApiError(404, "Foydalanuvchi topilmadi");
   return user;
 };
