@@ -14,6 +14,7 @@ import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 //   REGION     - ids = Region ObjectIds
 //   TOURNAMENT - ids = Tournament ObjectIds - leader + roster members of every registered team
 //   TEAM       - ids = Team ObjectIds - leader + every member of the team
+//   USER       - ids = User ObjectIds - those specific users
 export const resolveAudience = async ({ type, ids = [] }) => {
   const tgIds = new Set();
 
@@ -90,6 +91,17 @@ export const resolveAudience = async ({ type, ids = [] }) => {
         if (m?.tgId) tgIds.add(m.tgId);
       }
     }
+    return [...tgIds];
+  }
+
+  if (type === BROADCAST_TARGET.USER) {
+    const userIds = ids.filter(Boolean).map((s) => new mongoose.Types.ObjectId(s));
+    if (!userIds.length) return [];
+    const users = await User.find(
+      { _id: { $in: userIds }, tgId: { $exists: true, $ne: null } },
+      "tgId",
+    );
+    users.forEach((u) => tgIds.add(u.tgId));
     return [...tgIds];
   }
 

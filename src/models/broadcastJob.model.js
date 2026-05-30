@@ -15,6 +15,7 @@ export const BROADCAST_TARGET = Object.freeze({
   TOURNAMENT: "tournament",
   GROUP: "group",
   TEAM: "team",
+  USER: "user",
 });
 
 const buttonSchema = new mongoose.Schema(
