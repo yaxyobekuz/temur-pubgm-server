@@ -2,7 +2,6 @@ import { z } from "zod";
 import {
   TOURNAMENT_STATUS,
   TOURNAMENT_MODE,
-  MAX_STAGES_COUNT,
 } from "../../../constants/tournament.js";
 import { isPrivateTelegramUrl } from "../../../utils/telegram.js";
 
@@ -30,7 +29,6 @@ export const createSchema = z.object({
     startDate: z.union([z.coerce.date(), z.string().min(1)]).optional(),
     maps: z.array(z.string().min(1).max(60)).optional(),
     maxTeams: z.number().int().min(1).max(1000).optional(),
-    stagesCount: z.number().int().min(1).max(MAX_STAGES_COUNT).optional(),
     adminContactUrl: z.string().max(500).optional(),
   }),
 });
@@ -47,7 +45,6 @@ export const updateSchema = z.object({
       startDate: z.union([z.coerce.date(), z.null()]).optional(),
       maps: z.array(z.string().min(1).max(60)).optional(),
       maxTeams: z.number().int().min(1).max(1000).optional(),
-      stagesCount: z.number().int().min(1).max(MAX_STAGES_COUNT).optional(),
       adminContactUrl: z.string().max(500).optional(),
     })
     .refine((b) => Object.keys(b).length > 0, {

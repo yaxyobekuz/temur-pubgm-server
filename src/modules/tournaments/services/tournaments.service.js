@@ -12,7 +12,6 @@ import {
   TOURNAMENT_MODE,
   ACTIVE_TOURNAMENT_STATUSES,
   DEFAULT_STAGES_COUNT,
-  MAX_STAGES_COUNT,
   TEAM_PLACEMENT_KIND,
   getStageBlueprint,
   getStageLabel,
@@ -41,16 +40,9 @@ const buildUniqueSlug = async (base) => {
   return `${slug}-${Date.now().toString(36).slice(-4)}`;
 };
 
-const ensureStagesCount = (n) => {
-  const v = Number(n) || DEFAULT_STAGES_COUNT;
-  if (v < 1 || v > MAX_STAGES_COUNT) {
-    throw new ApiError(400, `Bosqichlar soni 1..${MAX_STAGES_COUNT} oraliqda bo'lishi kerak`);
-  }
-  return v;
-};
-
-// Creates the stages (each with its materialized config) and builds the stage-1 group
-// skeleton so leaders can pick a day+time slot during the (pending) registration phase.
+// Creates the stages (each with its materialized config) and builds the full group skeleton
+// for EVERY stage so the admin can pre-configure each group's secret group before the
+// tournament starts (leaders also pick a stage-1 slot during the pending registration phase).
 const createStagesForTournament = async (tournamentId, count) => {
   const docs = Array.from({ length: count }, (_, i) => ({
     tournament: tournamentId,
@@ -58,19 +50,8 @@ const createStagesForTournament = async (tournamentId, count) => {
     config: getStageBlueprint(i + 1, count),
   }));
   const stages = await Stage.insertMany(docs);
-  const stage1 = stages.find((s) => s.order === 1);
-  if (stage1) await stagesService.buildSkeleton(stage1);
+  for (const s of stages) await stagesService.buildSkeleton(s);
   return stages;
-};
-
-const replaceStagesForTournament = async (tournamentId, count) => {
-  const existing = await Stage.find({ tournament: tournamentId }).select("_id");
-  const ids = existing.map((s) => s._id);
-  if (ids.length) {
-    await Group.deleteMany({ stage: { $in: ids } });
-    await Stage.deleteMany({ _id: { $in: ids } });
-  }
-  return createStagesForTournament(tournamentId, count);
 };
 
 // Attach `stages` array to a tournament document (lean-style).
@@ -115,7 +96,8 @@ export const create = async (body) => {
   if (!Object.values(TOURNAMENT_MODE).includes(body.mode)) {
     throw new ApiError(400, "Noto'g'ri o'yin rejimi");
   }
-  const stagesCount = ensureStagesCount(body.stagesCount);
+  // Turnir har doim ruxsat etilgan bosqich strukturasidan iborat (default 3, oxirgisi - Final).
+  const stagesCount = DEFAULT_STAGES_COUNT;
   const slug = await buildUniqueSlug(body.title);
 
   const t = await Tournament.create({
@@ -165,19 +147,6 @@ export const update = async (id, body) => {
   }
   if (body.maxTeams !== undefined) t.maxTeams = body.maxTeams;
   if (body.adminContactUrl !== undefined) t.adminContactUrl = body.adminContactUrl.trim();
-
-  if (body.stagesCount !== undefined) {
-    const nextCount = ensureStagesCount(body.stagesCount);
-    if (nextCount !== t.stagesCount) {
-      if (t.status !== TOURNAMENT_STATUS.PENDING) {
-        throw new ApiError(400, "Bosqichlar sonini faqat kutilayotgan turnirda o'zgartirish mumkin");
-      }
-      t.stagesCount = nextCount;
-      await t.save();
-      await replaceStagesForTournament(t._id, nextCount);
-      return withStages(t);
-    }
-  }
 
   await t.save();
   return withStages(t);
