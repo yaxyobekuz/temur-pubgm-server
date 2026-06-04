@@ -2,7 +2,7 @@ import path from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import requireAuth from "../../middleware/auth.js";
-import requirePermission from "../../middleware/requirePermission.js";
+import { requireAnyPermission } from "../../middleware/requirePermission.js";
 import asyncHandler from "../../middleware/asyncHandler.js";
 import ApiError from "../../utils/ApiError.js";
 import { PERMISSIONS } from "../../constants/permissions.js";
@@ -34,7 +34,11 @@ const router = Router();
 router.post(
   "/image",
   requireAuth,
-  requirePermission(PERMISSIONS.BROADCASTS_CREATE),
+  requireAnyPermission(
+    PERMISSIONS.BROADCASTS_CREATE,
+    PERMISSIONS.TOURNAMENTS_CREATE,
+    PERMISSIONS.TOURNAMENTS_UPDATE,
+  ),
   upload.single("file"),
   asyncHandler(async (req, res) => {
     if (!req.file) throw new ApiError(400, "Fayl yuborilmadi");

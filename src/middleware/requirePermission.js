@@ -9,4 +9,13 @@ const requirePermission = (key) => (req, _res, next) => {
   next();
 };
 
+// Passes if the user has at least one of the given permissions.
+export const requireAnyPermission = (...keys) => (req, _res, next) => {
+  if (!req.user) return next(new ApiError(401, "Avtorizatsiyadan o'tilmagan"));
+  if (!keys.some((key) => hasPermission(req.permissions, key))) {
+    return next(new ApiError(403, "Ruxsat etilmagan"));
+  }
+  next();
+};
+
 export default requirePermission;
