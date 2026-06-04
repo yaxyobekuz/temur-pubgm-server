@@ -1,24 +1,41 @@
 import Group from "../../../models/group.model.js";
+import Stage from "../../../models/stage.model.js";
 import TournamentRegistration, {
   REGISTRATION_STATUS,
 } from "../../../models/tournamentRegistration.model.js";
 import ApiError from "../../../utils/ApiError.js";
+import { TEAM_PLACEMENT_KIND, stageCapacity } from "../../../constants/tournament.js";
 
-// Populates `teams[]` with `{ registrationId, team: { name, ... } }` shape so UI
-// can render team names without N+1 fetches.
+// Joins the stage schedule (date + time) onto a group by its day/timeSlot.
+const attachSchedule = (group, stage) => {
+  const sd = (stage?.schedule || []).find((x) => x.day === group.day);
+  const st = sd?.timeSlots?.find((x) => x.timeSlot === group.timeSlot);
+  return { ...group, date: sd?.date || null, time: st?.time || "" };
+};
+
+// Populates `teams[]` with `{ registrationId, kind, team: { name, ... } }` and attaches the
+// concrete `date`/`time` from the stage schedule. Sorted day -> timeSlot -> code.
 export const listByStage = async (stageId) => {
-  const groups = await Group.find({ stage: stageId }).sort({ code: 1 }).lean();
-  const allRegIds = groups.flatMap((g) => g.teams || []);
-  if (!allRegIds.length) return groups;
-  const regs = await TournamentRegistration.find({ _id: { $in: allRegIds } })
-    .populate("team", "name leader")
-    .lean();
+  const [groups, stage] = await Promise.all([
+    Group.find({ stage: stageId }).sort({ day: 1, timeSlot: 1, code: 1 }).lean(),
+    Stage.findById(stageId).lean(),
+  ]);
+  const allRegIds = groups.flatMap((g) => (g.teams || []).map((t) => t.registration));
+  const regs = allRegIds.length
+    ? await TournamentRegistration.find({ _id: { $in: allRegIds } })
+        .populate("team", "name leader")
+        .lean()
+    : [];
   const byId = new Map(regs.map((r) => [String(r._id), r]));
   return groups.map((g) => ({
-    ...g,
-    teams: (g.teams || []).map((id) => {
-      const r = byId.get(String(id));
-      return { registrationId: String(id), team: r?.team || null };
+    ...attachSchedule(g, stage),
+    teams: (g.teams || []).map((t) => {
+      const r = byId.get(String(t.registration));
+      return {
+        registrationId: String(t.registration),
+        kind: t.kind,
+        team: r?.team || null,
+      };
     }),
   }));
 };
@@ -29,28 +46,43 @@ export const getById = async (id) => {
   return g;
 };
 
-export const removeTeam = async (id, teamId) => {
+export const removeTeam = async (id, registrationId) => {
   const g = await getById(id);
-  g.teams = g.teams.filter((t) => String(t) !== String(teamId));
+  g.teams = g.teams.filter((t) => String(t.registration) !== String(registrationId));
   await g.save();
+  // Clear the team's placement pointer if it pointed here.
+  await TournamentRegistration.updateOne(
+    { _id: registrationId, currentGroup: g._id },
+    { $set: { currentGroup: null } },
+  );
   return g;
 };
 
-// Re-add a previously removed team (registrationId) back into the group.
-export const addTeam = async (id, teamId) => {
+// Place a registration into a group, tagged by `kind` (normal/advanced/vip).
+export const addTeam = async (id, registrationId, kind = TEAM_PLACEMENT_KIND.NORMAL) => {
   const g = await getById(id);
-  if (g.teams.some((t) => String(t) === String(teamId))) {
+  if (g.teams.some((t) => String(t.registration) === String(registrationId))) {
     throw new ApiError(409, "Bu komanda allaqachon guruhda");
   }
   if (g.teams.length >= g.maxTeams) {
     throw new ApiError(409, "Guruh to'lgan");
   }
-  const reg = await TournamentRegistration.findById(teamId);
+  const reg = await TournamentRegistration.findById(registrationId);
   if (!reg) throw new ApiError(404, "Komanda topilmadi");
   if (reg.status !== REGISTRATION_STATUS.REGISTERED) {
     throw new ApiError(400, "Bu komanda turnirda faol emas");
   }
-  g.teams.push(teamId);
+  g.teams.push({ registration: registrationId, kind });
   await g.save();
   return g;
+};
+
+// Stage groups + how many more teams can still be placed (= VIP capacity remaining).
+export const getStageGroupsWithCapacity = async (stageId) => {
+  const stage = await Stage.findById(stageId);
+  if (!stage) throw new ApiError(404, "Bosqich topilmadi");
+  const groups = await listByStage(stageId);
+  const placed = groups.reduce((sum, g) => sum + (g.teams?.length || 0), 0);
+  const capacity = stageCapacity(stage.config);
+  return { groups, capacity, placed, vipRemaining: Math.max(0, capacity - placed) };
 };
