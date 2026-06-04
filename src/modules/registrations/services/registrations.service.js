@@ -13,7 +13,9 @@ import {
   TEAM_PLACEMENT_KIND,
 } from "../../../constants/tournament.js";
 import * as botClient from "../../../services/botClient.service.js";
+import * as notify from "../../../services/notify.service.js";
 import { getTelegramChannelIdentifier } from "../../../utils/telegram.js";
+import { formatDateUz } from "../../../utils/dateUz.js";
 import * as stagesService from "../../stages/services/stages.service.js";
 import * as groupsService from "../../groups/services/groups.service.js";
 
@@ -258,6 +260,16 @@ export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot
   reg.placedStage = 1;
   await reg.save();
 
+  // Leaderga ro'yxat tasdig'i (guruh + sana/vaqt). Jadval bo'lmasa faqat guruh kodi.
+  const slot = stagesService.getScheduleSlot(stage1, day, timeSlot);
+  const when = slot?.date
+    ? `\nSana: ${formatDateUz(slot.date)}${slot.time ? `, ${slot.time}` : ""}`
+    : "";
+  await notify.notifyUser({
+    tgId: leaderTgId,
+    text: `✅ <b>${tournament.title}</b> turniriga ro'yxatdan o'tdingiz.\nGuruh: <b>${group.code}</b>${when}`,
+  });
+
   return reg.populate([
     { path: "team", select: "name logo" },
     { path: "roster.user", select: "firstName lastName tgUsername gameNickname" },
@@ -316,6 +328,15 @@ export const kick = async (id) => {
   if (r.status === REGISTRATION_STATUS.KICKED) return r;
   r.status = REGISTRATION_STATUS.KICKED;
   await r.save();
+
+  // Leaderga diskvalifikatsiya xabari.
+  const leader = await notify.resolveRecipient(r.team?.leader);
+  if (leader) {
+    await notify.notifyUser({
+      tgId: leader.tgId,
+      text: `⚠️ Komandangiz <b>${r.tournament?.title || "turnir"}</b> turniridan chiqarildi.`,
+    });
+  }
   return r;
 };
 
@@ -331,6 +352,15 @@ export const restore = async (id) => {
   }
   r.status = REGISTRATION_STATUS.REGISTERED;
   await r.save();
+
+  // Leaderga qayta tiklash xabari.
+  const leader = await notify.resolveRecipient(r.team?.leader);
+  if (leader) {
+    await notify.notifyUser({
+      tgId: leader.tgId,
+      text: `✅ Komandangiz <b>${r.tournament?.title || "turnir"}</b> turniriga qaytarildi.`,
+    });
+  }
   return r;
 };
 

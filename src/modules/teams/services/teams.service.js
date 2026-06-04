@@ -8,6 +8,7 @@ import {
   isTeamLockedByActiveTournament,
   isUserLockedByActiveTournament,
 } from "../../registrations/services/registrations.service.js";
+import * as notify from "../../../services/notify.service.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -148,6 +149,15 @@ export const kickMember = async (leaderUser, memberId) => {
 
   team.members = team.members.filter((m) => String(m) !== String(memberId));
   await team.save();
+
+  // Chiqarilgan a'zoga xabar.
+  const kicked = await notify.resolveRecipient(memberId);
+  if (kicked) {
+    await notify.notifyUser({
+      tgId: kicked.tgId,
+      text: `⚠️ Siz <b>${team.name}</b> komandasidan chiqarildingiz.`,
+    });
+  }
   return team;
 };
 
@@ -157,6 +167,15 @@ export const leave = async (user) => {
   await assertNotLockedByTournament(team._id, user._id);
   team.members = team.members.filter((m) => String(m) !== String(user._id));
   await team.save();
+
+  // Leaderga xabar (chiquvchi - acting user).
+  const leader = await notify.resolveRecipient(team.leader);
+  if (leader) {
+    await notify.notifyUser({
+      tgId: leader.tgId,
+      text: `ℹ️ <b>${notify.displayName(user)}</b> komandangizdan chiqdi.`,
+    });
+  }
   return team;
 };
 
@@ -185,6 +204,19 @@ export const acceptInvite = async (user, inviteCode) => {
 
   team.members.push(user._id);
   await team.save();
+
+  // Leaderga (yangi a'zo qo'shildi) + qo'shilgan a'zoga (xush kelibsiz) xabar.
+  const leader = await notify.resolveRecipient(team.leader);
+  if (leader) {
+    await notify.notifyUser({
+      tgId: leader.tgId,
+      text: `✅ <b>${notify.displayName(user)}</b> komandangizga qo'shildi.`,
+    });
+  }
+  await notify.notifyUser({
+    tgId: user.tgId,
+    text: `✅ Siz <b>${team.name}</b> komandasiga qo'shildingiz.`,
+  });
   return team;
 };
 
