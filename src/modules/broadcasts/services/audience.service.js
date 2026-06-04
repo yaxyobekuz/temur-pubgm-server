@@ -65,7 +65,9 @@ export const resolveAudience = async ({ type, ids = [] }) => {
     const groupIds = ids.filter(Boolean).map((s) => new mongoose.Types.ObjectId(s));
     if (!groupIds.length) return [];
     const groups = await Group.find({ _id: { $in: groupIds } }, "teams");
-    const regIds = [...new Set(groups.flatMap((g) => (g.teams || []).map(String)))];
+    const regIds = [
+      ...new Set(groups.flatMap((g) => (g.teams || []).map((t) => String(t.registration)))),
+    ];
     if (!regIds.length) return [];
     const regs = await TournamentRegistration.find(
       { _id: { $in: regIds }, status: REGISTRATION_STATUS.REGISTERED },
