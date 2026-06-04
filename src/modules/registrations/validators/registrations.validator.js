@@ -20,6 +20,8 @@ export const listSchema = z.object({
 export const registerSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({
+    day: z.number().int().min(1),
+    timeSlot: z.number().int().min(1),
     roster: z
       .array(
         z.object({

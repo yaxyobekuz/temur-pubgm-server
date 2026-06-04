@@ -6,6 +6,8 @@ const register = asyncHandler(async (req, res) => {
     tournamentId: req.params.id,
     leaderUser: req.user,
     roster: req.body.roster,
+    day: req.body.day,
+    timeSlot: req.body.timeSlot,
   });
   res.status(201).json({
     success: true,

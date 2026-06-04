@@ -10,9 +10,12 @@ import {
   TOURNAMENT_STATUS,
   ACTIVE_TOURNAMENT_STATUSES,
   MODE_ROSTER_SIZE,
+  TEAM_PLACEMENT_KIND,
 } from "../../../constants/tournament.js";
 import * as botClient from "../../../services/botClient.service.js";
 import { getTelegramChannelIdentifier } from "../../../utils/telegram.js";
+import * as stagesService from "../../stages/services/stages.service.js";
+import * as groupsService from "../../groups/services/groups.service.js";
 
 // Active = a registration the team is currently committed to.
 // Used by Phase 3 locks (team kick/leave, role swap, second registration).
@@ -123,11 +126,24 @@ const ensureSecretGroupMembership = async ({ tournament, leaderTgId }) => {
   }
 };
 
-export const register = async ({ tournamentId, leaderUser, roster }) => {
+export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot }) => {
   const tournament = await Tournament.findById(tournamentId);
   if (!tournament) throw new ApiError(404, "Turnir topilmadi");
   if (tournament.status !== TOURNAMENT_STATUS.PENDING) {
     throw new ApiError(400, "Bu turnir hozir ro'yxat qabul qilmaydi");
+  }
+  if (!day || !timeSlot) {
+    throw new ApiError(400, "Kun va vaqtni tanlang");
+  }
+
+  // The leader picks a stage-1 day+time slot; the team is auto-placed into a free group there.
+  const stage1 = await stagesService.getByTournamentAndOrder(tournament._id, 1);
+  if (!stagesService.isScheduleComplete(stage1)) {
+    throw new ApiError(400, "Turnir jadvali hali tayyor emas");
+  }
+  const openGroup = await stagesService.findOpenGroupForSlot(stage1._id, day, timeSlot);
+  if (!openGroup) {
+    throw new ApiError(409, "Tanlangan kun/vaqt to'lgan, boshqasini tanlang");
   }
 
   const team = await Team.findOne({ leader: leaderUser._id });
@@ -182,11 +198,32 @@ export const register = async ({ tournamentId, leaderUser, roster }) => {
     team: team._id,
     status: REGISTRATION_STATUS.REGISTERED,
     roster,
+    eligibleStage: 1,
+    placedStage: 0,
     registeredAt: new Date(),
   });
+
+  // Place into a free group of the chosen slot (re-resolve in case it filled up meanwhile).
+  const group =
+    (await stagesService.findOpenGroupForSlot(stage1._id, day, timeSlot)) || openGroup;
+  try {
+    await groupsService.addTeam(group._id, reg._id, TEAM_PLACEMENT_KIND.NORMAL);
+  } catch (err) {
+    // Slot filled between the check and now - roll the registration back.
+    await reg.deleteOne();
+    if (err instanceof ApiError && err.statusCode === 409) {
+      throw new ApiError(409, "Tanlangan kun/vaqt to'lgan, boshqasini tanlang");
+    }
+    throw err;
+  }
+  reg.currentGroup = group._id;
+  reg.placedStage = 1;
+  await reg.save();
+
   return reg.populate([
     { path: "team", select: "name logo" },
     { path: "roster.user", select: "firstName lastName tgUsername gameNickname" },
+    { path: "currentGroup", select: "code day timeSlot" },
   ]);
 };
 
@@ -197,13 +234,34 @@ export const listByTournament = async ({ tournamentId, status }) => {
     .sort({ registeredAt: 1 })
     .populate("team", "name logo leader")
     .populate("roster.user", "firstName lastName tgUsername gameNickname")
-    .populate("currentGroup", "code");
+    .populate("currentGroup", "code day timeSlot stage");
 };
 
+// Returns the team's registrations, each enriched with the concrete date/time label of its
+// current group (resolved from the stage schedule) for the bot to display.
 export const listByTeam = async (teamId) => {
-  return TournamentRegistration.find({ team: teamId })
+  const regs = await TournamentRegistration.find({ team: teamId })
     .sort({ registeredAt: -1 })
-    .populate("tournament", "title slug status mode startDate");
+    .populate("tournament", "title slug status mode startDate currentStage stagesCount")
+    .populate("currentGroup", "code day timeSlot stage")
+    .lean();
+
+  const stageIds = regs.map((r) => r.currentGroup?.stage).filter(Boolean);
+  if (!stageIds.length) return regs;
+  const Stage = (await import("../../../models/stage.model.js")).default;
+  const stages = await Stage.find({ _id: { $in: stageIds } }, "schedule").lean();
+  const byStage = new Map(stages.map((s) => [String(s._id), s]));
+
+  for (const r of regs) {
+    const g = r.currentGroup;
+    if (!g?.stage) continue;
+    const stage = byStage.get(String(g.stage));
+    const sd = (stage?.schedule || []).find((x) => x.day === g.day);
+    const st = sd?.timeSlots?.find((x) => x.timeSlot === g.timeSlot);
+    g.date = sd?.date || null;
+    g.time = st?.time || "";
+  }
+  return regs;
 };
 
 export const getById = async (id) => {
@@ -243,4 +301,73 @@ export const setGroup = async (id, groupId) => {
   r.currentGroup = groupId || null;
   await r.save();
   return r;
+};
+
+// The leader's team registration that has been advanced/VIP-invited to a stage it has not
+// yet picked a slot for (eligibleStage > placedStage), plus the open slots of that stage.
+export const getPendingPlacement = async (leaderUser) => {
+  const team = await Team.findOne({ leader: leaderUser._id });
+  if (!team) return null;
+  const reg = await TournamentRegistration.findOne({
+    team: team._id,
+    status: REGISTRATION_STATUS.REGISTERED,
+    $expr: { $gt: ["$eligibleStage", "$placedStage"] },
+  }).populate("tournament", "title status stagesCount");
+  if (!reg) return null;
+
+  const stage = await stagesService.getByTournamentAndOrder(
+    reg.tournament._id,
+    reg.eligibleStage,
+  );
+  const scheduleReady = stagesService.isScheduleComplete(stage);
+  // If the next stage's schedule is not set yet, surface no slots (the bot shows a notice).
+  const openSlots = scheduleReady ? await stagesService.listOpenSlots(stage._id) : { days: [] };
+  return {
+    registrationId: String(reg._id),
+    tournament: { _id: reg.tournament._id, title: reg.tournament.title },
+    stageOrder: reg.eligibleStage,
+    stagesCount: reg.tournament.stagesCount,
+    kind: reg.nextPlacementKind,
+    scheduleReady,
+    openSlots,
+  };
+};
+
+// Place an advanced/VIP team into a chosen day+time slot of its eligible (next) stage.
+export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot }) => {
+  const team = await Team.findOne({ leader: leaderUser._id });
+  if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
+
+  const reg = await TournamentRegistration.findOne({
+    _id: registrationId,
+    team: team._id,
+    status: REGISTRATION_STATUS.REGISTERED,
+  });
+  if (!reg) throw new ApiError(404, "Ro'yxat topilmadi");
+  if (reg.eligibleStage <= reg.placedStage) {
+    throw new ApiError(400, "Bu bosqich uchun joy tanlash kerak emas");
+  }
+  if (!day || !timeSlot) throw new ApiError(400, "Kun va vaqtni tanlang");
+
+  const stage = await stagesService.getByTournamentAndOrder(reg.tournament, reg.eligibleStage);
+  if (!stagesService.isScheduleComplete(stage)) {
+    throw new ApiError(400, "Bu bosqich jadvali hali tayyor emas");
+  }
+  const openGroup = await stagesService.findOpenGroupForSlot(stage._id, day, timeSlot);
+  if (!openGroup) {
+    throw new ApiError(409, "Tanlangan kun/vaqt to'lgan, boshqasini tanlang");
+  }
+
+  const kind =
+    reg.nextPlacementKind === TEAM_PLACEMENT_KIND.NORMAL
+      ? TEAM_PLACEMENT_KIND.ADVANCED
+      : reg.nextPlacementKind;
+  await groupsService.addTeam(openGroup._id, reg._id, kind);
+
+  reg.currentGroup = openGroup._id;
+  reg.placedStage = reg.eligibleStage;
+  reg.nextPlacementKind = TEAM_PLACEMENT_KIND.NORMAL;
+  await reg.save();
+
+  return reg.populate({ path: "currentGroup", select: "code day timeSlot" });
 };
