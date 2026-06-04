@@ -14,6 +14,7 @@ import {
   setSecretGroupSchema,
   idParamSchema,
   promoteSchema,
+  openVipSchema,
 } from "./validators/tournaments.validator.js";
 import list from "./handlers/list.handler.js";
 import getById from "./handlers/getById.handler.js";
@@ -22,6 +23,7 @@ import update from "./handlers/update.handler.js";
 import remove from "./handlers/remove.handler.js";
 import changeStatus from "./handlers/changeStatus.handler.js";
 import promote from "./handlers/promote.handler.js";
+import openVip from "./handlers/vip.handler.js";
 import {
   addSponsorChannel,
   removeSponsorChannel,
@@ -83,6 +85,13 @@ router.post(
   requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
   validate(promoteSchema),
   promote,
+);
+router.post(
+  "/:id/vip-slots",
+  requireAuth,
+  requirePermission(PERMISSIONS.GROUPS_UPDATE),
+  validate(openVipSchema),
+  openVip,
 );
 router.post(
   "/:id/sponsor-channels",

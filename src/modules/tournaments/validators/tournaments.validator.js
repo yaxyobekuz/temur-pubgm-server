@@ -31,6 +31,7 @@ export const createSchema = z.object({
     maps: z.array(z.string().min(1).max(60)).optional(),
     maxTeams: z.number().int().min(1).max(1000).optional(),
     stagesCount: z.number().int().min(1).max(MAX_STAGES_COUNT).optional(),
+    adminContactUrl: z.string().max(500).optional(),
   }),
 });
 
@@ -47,6 +48,7 @@ export const updateSchema = z.object({
       maps: z.array(z.string().min(1).max(60)).optional(),
       maxTeams: z.number().int().min(1).max(1000).optional(),
       stagesCount: z.number().int().min(1).max(MAX_STAGES_COUNT).optional(),
+      adminContactUrl: z.string().max(500).optional(),
     })
     .refine((b) => Object.keys(b).length > 0, {
       message: "Hech bo'lmaganda bitta maydon kerak",
@@ -63,7 +65,28 @@ export const changeStatusSchema = z.object({
 export const promoteSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({
-    teamIds: z.array(z.string().min(1)).min(1, "Hech bo'lmaganda bitta komanda tanlang"),
+    groups: z
+      .array(
+        z.object({
+          groupId: z.string().min(1),
+          places: z
+            .array(
+              z.object({
+                place: z.number().int().min(1),
+                registrationId: z.string().min(1),
+              }),
+            )
+            .default([]),
+        }),
+      )
+      .min(1, "Hech bo'lmaganda bitta guruh tanlang"),
+  }),
+});
+
+export const openVipSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({
+    registrationId: z.string().min(1),
   }),
 });
 

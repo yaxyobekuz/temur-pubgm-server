@@ -1,6 +1,7 @@
 import Tournament from "../../../models/tournament.model.js";
 import Stage from "../../../models/stage.model.js";
 import Group from "../../../models/group.model.js";
+import HelpLink from "../../../models/helpLink.model.js";
 import TournamentRegistration, {
   REGISTRATION_STATUS,
 } from "../../../models/tournamentRegistration.model.js";
@@ -12,9 +13,13 @@ import {
   ACTIVE_TOURNAMENT_STATUSES,
   DEFAULT_STAGES_COUNT,
   MAX_STAGES_COUNT,
+  TEAM_PLACEMENT_KIND,
+  getStageBlueprint,
+  getStageLabel,
 } from "../../../constants/tournament.js";
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 import * as stagesService from "../../stages/services/stages.service.js";
+import * as groupsService from "../../groups/services/groups.service.js";
 import logger from "../../../config/logger.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -44,12 +49,18 @@ const ensureStagesCount = (n) => {
   return v;
 };
 
+// Creates the stages (each with its materialized config) and builds the stage-1 group
+// skeleton so leaders can pick a day+time slot during the (pending) registration phase.
 const createStagesForTournament = async (tournamentId, count) => {
   const docs = Array.from({ length: count }, (_, i) => ({
     tournament: tournamentId,
     order: i + 1,
+    config: getStageBlueprint(i + 1, count),
   }));
-  return Stage.insertMany(docs);
+  const stages = await Stage.insertMany(docs);
+  const stage1 = stages.find((s) => s.order === 1);
+  if (stage1) await stagesService.buildSkeleton(stage1);
+  return stages;
 };
 
 const replaceStagesForTournament = async (tournamentId, count) => {
@@ -59,7 +70,7 @@ const replaceStagesForTournament = async (tournamentId, count) => {
     await Group.deleteMany({ stage: { $in: ids } });
     await Stage.deleteMany({ _id: { $in: ids } });
   }
-  await createStagesForTournament(tournamentId, count);
+  return createStagesForTournament(tournamentId, count);
 };
 
 // Attach `stages` array to a tournament document (lean-style).
@@ -116,10 +127,11 @@ export const create = async (body) => {
     mode: body.mode,
     startDate: body.startDate ? new Date(body.startDate) : null,
     sponsorChannels: [],
+    adminContactUrl: body.adminContactUrl?.trim() || "",
     maps: Array.isArray(body.maps) ? body.maps.filter(Boolean) : [],
     maxTeams: body.maxTeams ?? 60,
     stagesCount,
-    status: TOURNAMENT_STATUS.PENDING,
+    status: TOURNAMENT_STATUS.DRAFT,
     currentStage: 1,
   });
 
@@ -152,6 +164,7 @@ export const update = async (id, body) => {
     t.maps = Array.isArray(body.maps) ? body.maps.filter(Boolean) : [];
   }
   if (body.maxTeams !== undefined) t.maxTeams = body.maxTeams;
+  if (body.adminContactUrl !== undefined) t.adminContactUrl = body.adminContactUrl.trim();
 
   if (body.stagesCount !== undefined) {
     const nextCount = ensureStagesCount(body.stagesCount);
@@ -214,23 +227,55 @@ const enqueueStatusBroadcast = async (tournament, next, currentUser) => {
   }
 };
 
+// Resolves the admin contact link for VIP requests: tournament field first, then the first
+// active help link as a fallback.
+const resolveAdminContactUrl = async (tournament) => {
+  if (tournament.adminContactUrl) return tournament.adminContactUrl;
+  const link = await HelpLink.findOne({ isActive: true }).sort({ order: 1 });
+  return link?.url || "";
+};
+
+// Notify every tournament member that a new stage has opened, with an admin-contact button
+// so non-advancing teams can request a VIP slot.
+const enqueuePromoteBroadcast = async (tournament, nextOrder, currentUser) => {
+  try {
+    const { create } = await import("../../broadcasts/services/broadcasts.service.js");
+    const stageLabel = getStageLabel(nextOrder, tournament.stagesCount);
+    const title = `${tournament.title} - ${stageLabel}`;
+    const body = [
+      `<b>${tournament.title}</b> turnirida <b>${stageLabel}</b> ochildi.`,
+      "",
+      "O'tgan komandalar bot orqali kun va vaqtni tanlab joylashlari kerak.",
+      "O'ta olmagan komandalar VIP slot olish uchun admin bilan bog'lanishlari mumkin.",
+    ].join("\n");
+    const url = await resolveAdminContactUrl(tournament);
+    const buttons = url ? [{ text: "Admin bilan bog'lanish", url }] : [];
+    await create(
+      {
+        title,
+        body,
+        buttons,
+        target: { type: BROADCAST_TARGET.TOURNAMENT, ids: [tournament._id.toString()] },
+      },
+      currentUser,
+    );
+  } catch (err) {
+    logger.warn(
+      { err: err.message, tournamentId: tournament._id, nextOrder },
+      "Promote broadcast enqueue xato",
+    );
+  }
+};
+
 export const changeStatus = async (id, next, currentUser) => {
   const t = await getRawById(id);
   if (!Object.values(TOURNAMENT_STATUS).includes(next)) {
     throw new ApiError(400, "Noto'g'ri status");
   }
 
-  // pending → ongoing: tournament starts, auto-fill stage 1 with all registered teams.
-  if (
-    t.status === TOURNAMENT_STATUS.PENDING &&
-    next === TOURNAMENT_STATUS.ONGOING
-  ) {
-    const regs = await TournamentRegistration.find({
-      tournament: t._id,
-      status: REGISTRATION_STATUS.REGISTERED,
-    }).select("_id");
-    const stage = await stagesService.getByTournamentAndOrder(t._id, 1);
-    await stagesService.autoAssignGroups(stage._id, regs.map((r) => r._id));
+  // pending → ongoing: teams are already placed into stage-1 groups at registration time
+  // (each leader picked a day+time slot), so no auto-assignment is needed here.
+  if (t.status === TOURNAMENT_STATUS.PENDING && next === TOURNAMENT_STATUS.ONGOING) {
     t.currentStage = 1;
   }
 
@@ -242,8 +287,10 @@ export const changeStatus = async (id, next, currentUser) => {
   return withStages(t);
 };
 
-// Promote selected teams to the next stage. Bumps currentStage; status stays ONGOING.
-export const promoteToNext = async (id, teamIds, currentUser) => {
+// Admin picks the advancing places (1st/2nd/3rd) per group. Advancing teams are NOT placed
+// into the next stage here - they are granted eligibility and pick a day+time slot via the bot.
+// Bumps currentStage; status stays ONGOING. Notifies all tournament members.
+export const promoteToNext = async (id, groupsPayload, currentUser) => {
   const t = await getRawById(id);
   if (t.status !== TOURNAMENT_STATUS.ONGOING) {
     throw new ApiError(400, "Turnir aktiv bosqichda emas");
@@ -251,13 +298,86 @@ export const promoteToNext = async (id, teamIds, currentUser) => {
   if (t.currentStage >= t.stagesCount) {
     throw new ApiError(400, "Bu oxirgi bosqich, keyingisi yo'q");
   }
+  if (!Array.isArray(groupsPayload) || !groupsPayload.length) {
+    throw new ApiError(400, "O'tadigan komandalarni tanlang");
+  }
+
+  const currentStage = await stagesService.getByTournamentAndOrder(t._id, t.currentStage);
+  const advancePlaces = currentStage.config.advancePlaces;
+
+  // Validate places per group (1..advancePlaces, no duplicates) and gather advancing reg ids.
+  const advancingIds = [];
+  for (const g of groupsPayload) {
+    const seen = new Set();
+    for (const p of g.places || []) {
+      if (p.place < 1 || p.place > advancePlaces) {
+        throw new ApiError(400, `O'rin 1..${advancePlaces} oralig'ida bo'lishi kerak`);
+      }
+      if (seen.has(p.place)) {
+        throw new ApiError(400, "Bitta guruhda o'rin takrorlanmasligi kerak");
+      }
+      seen.add(p.place);
+      advancingIds.push(p.registrationId);
+    }
+  }
+  if (!advancingIds.length) {
+    throw new ApiError(400, "O'tadigan komandalarni tanlang");
+  }
 
   const nextOrder = t.currentStage + 1;
   const nextStage = await stagesService.getByTournamentAndOrder(t._id, nextOrder);
-  await stagesService.autoAssignGroups(nextStage._id, teamIds || []);
+  await stagesService.buildSkeleton(nextStage);
+
+  // Grant eligibility; the leader will pick the slot in the bot. Tag as ADVANCED.
+  await TournamentRegistration.updateMany(
+    { _id: { $in: advancingIds } },
+    { $set: { eligibleStage: nextOrder, nextPlacementKind: TEAM_PLACEMENT_KIND.ADVANCED } },
+  );
 
   t.currentStage = nextOrder;
   await t.save();
+
+  await enqueuePromoteBroadcast(t, nextOrder, currentUser);
+
+  return withStages(t);
+};
+
+// Open a VIP slot: grant a non-advanced team eligibility for the current stage. The team then
+// picks a day+time slot via the bot, just like advanced teams. Enforces remaining capacity.
+export const openVipSlot = async (id, registrationId, currentUser) => {
+  const t = await getRawById(id);
+  if (t.status !== TOURNAMENT_STATUS.ONGOING) {
+    throw new ApiError(400, "Turnir aktiv bosqichda emas");
+  }
+  if (t.currentStage < 2) {
+    throw new ApiError(400, "VIP slot faqat 2-bosqichdan boshlab beriladi");
+  }
+
+  const stage = await stagesService.getByTournamentAndOrder(t._id, t.currentStage);
+  const { vipRemaining } = await groupsService.getStageGroupsWithCapacity(stage._id);
+  // Count teams already granted eligibility for this stage but not yet placed.
+  const pending = await TournamentRegistration.countDocuments({
+    tournament: t._id,
+    eligibleStage: t.currentStage,
+    $expr: { $gt: ["$eligibleStage", "$placedStage"] },
+  });
+  if (vipRemaining - pending <= 0) {
+    throw new ApiError(409, "Bu bosqich uchun VIP slot qolmadi");
+  }
+
+  const reg = await TournamentRegistration.findOne({
+    _id: registrationId,
+    tournament: t._id,
+    status: REGISTRATION_STATUS.REGISTERED,
+  });
+  if (!reg) throw new ApiError(404, "Komanda topilmadi");
+  if (reg.eligibleStage >= t.currentStage) {
+    throw new ApiError(409, "Bu komanda allaqachon keyingi bosqichga o'tgan");
+  }
+
+  reg.eligibleStage = t.currentStage;
+  reg.nextPlacementKind = TEAM_PLACEMENT_KIND.VIP;
+  await reg.save();
 
   return withStages(t);
 };
