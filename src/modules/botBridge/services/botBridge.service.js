@@ -4,7 +4,7 @@ import Team from "../../../models/team.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import { ROLES } from "../../../constants/roles.js";
 import { TOURNAMENT_STATUS } from "../../../constants/tournament.js";
-import { normalizePhone } from "../../../utils/phone.js";
+import { sanitizeIntlPhone } from "../../../utils/phone.js";
 import { parseTelegramUsername } from "../../../utils/telegramUsername.js";
 import * as usersService from "../../users/services/users.service.js";
 import * as teamsService from "../../teams/services/teams.service.js";
@@ -25,7 +25,8 @@ export const registerOrLogin = async (body) => {
     throw new ApiError(404, "Mintaqa topilmadi");
   }
 
-  const phone = normalizePhone(body.contactPhone);
+  // Telegram raqamni tasdiqlagan - har qanday davlat raqamini qabul qilamiz (998-ga majburlamaymiz).
+  const phone = sanitizeIntlPhone(body.contactPhone);
   if (!phone) throw new ApiError(400, "Telefon raqam noto'g'ri");
 
   const existing = await User.findOne({ tgId });
