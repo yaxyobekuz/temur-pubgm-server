@@ -1,6 +1,7 @@
 import User from "../../../models/user.model.js";
 import Region from "../../../models/region.model.js";
 import Team from "../../../models/team.model.js";
+import Tournament from "../../../models/tournament.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import { ROLES } from "../../../constants/roles.js";
 import { TOURNAMENT_STATUS } from "../../../constants/tournament.js";
@@ -151,6 +152,17 @@ export const getTournamentForBot = async (id) => {
     throw new ApiError(404, "Turnir topilmadi");
   }
   return t;
+};
+
+// Bot caches the Telegram file_id after first uploading the banner photo.
+export const setTournamentBannerFileId = async (id, fileId) => {
+  const t = await Tournament.findByIdAndUpdate(
+    id,
+    { bannerFileId: fileId },
+    { new: true },
+  );
+  if (!t) throw new ApiError(404, "Turnir topilmadi");
+  return { _id: t._id, bannerFileId: t.bannerFileId };
 };
 
 // Open day+time slots of a tournament's stage-1 group skeleton (cascading register menu).

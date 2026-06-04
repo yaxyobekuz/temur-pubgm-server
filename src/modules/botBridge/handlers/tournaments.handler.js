@@ -11,6 +11,11 @@ export const getTournament = asyncHandler(async (req, res) => {
   res.json({ success: true, data: t });
 });
 
+export const setBannerFileId = asyncHandler(async (req, res) => {
+  const data = await botBridge.setTournamentBannerFileId(req.params.id, req.body.fileId);
+  res.json({ success: true, data });
+});
+
 export const register = asyncHandler(async (req, res) => {
   const reg = await botBridge.registerForTournament(
     req.body.tgId,

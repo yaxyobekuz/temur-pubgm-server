@@ -93,6 +93,11 @@ export const tournamentIdSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
 });
 
+export const setBannerFileIdSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({ fileId: z.string().min(1).max(200) }),
+});
+
 export const registerTournamentSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({

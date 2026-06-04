@@ -127,7 +127,11 @@ export const update = async (id, body) => {
   if (body.title !== undefined) {
     t.title = body.title.trim();
   }
-  if (body.banner !== undefined) t.banner = body.banner.trim();
+  if (body.banner !== undefined) {
+    const next = body.banner.trim();
+    if (next !== t.banner) t.bannerFileId = ""; // banner changed -> drop the stale Telegram cache
+    t.banner = next;
+  }
   if (body.description !== undefined) t.description = body.description.trim();
   if (body.prizePool !== undefined) t.prizePool = body.prizePool.trim();
   if (body.mode !== undefined) {

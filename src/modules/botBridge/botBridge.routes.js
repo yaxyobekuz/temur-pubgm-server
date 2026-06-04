@@ -13,6 +13,7 @@ import {
   kickMemberSchema,
   acceptInviteSchema,
   tournamentIdSchema,
+  setBannerFileIdSchema,
   registerTournamentSchema,
   myRegistrationsSchema,
   openSlotsSchema,
@@ -37,6 +38,7 @@ import {
 import {
   listTournaments,
   getTournament,
+  setBannerFileId,
   register as registerTournament,
   myRegistrations,
   openSlots,
@@ -71,6 +73,11 @@ router.get("/tournaments", listTournaments);
 router.get("/tournaments/:id/open-slots", validate(openSlotsSchema), openSlots);
 router.get("/tournaments/:id/sponsor-check", validate(sponsorCheckSchema), sponsorCheck);
 router.get("/tournaments/:id", validate(tournamentIdSchema), getTournament);
+router.patch(
+  "/tournaments/:id/banner-file-id",
+  validate(setBannerFileIdSchema),
+  setBannerFileId,
+);
 router.post(
   "/tournaments/:id/register",
   validate(registerTournamentSchema),

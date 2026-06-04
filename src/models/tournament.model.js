@@ -22,6 +22,8 @@ const tournamentSchema = new mongoose.Schema(
     title: { type: String, trim: true, required: true },
     slug: { type: String, trim: true, unique: true, required: true, lowercase: true },
     banner: { type: String, trim: true, default: "" },
+    // Cached Telegram file_id so the bot resends the banner without re-uploading.
+    bannerFileId: { type: String, trim: true, default: "" },
     description: { type: String, trim: true, default: "" },
     prizePool: { type: String, trim: true, default: "" },
     mode: {
