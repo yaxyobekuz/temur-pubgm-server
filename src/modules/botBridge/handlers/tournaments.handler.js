@@ -36,6 +36,11 @@ export const openSlots = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+export const sponsorCheck = asyncHandler(async (req, res) => {
+  const data = await botBridge.checkTeamSponsorMembership(req.query.tgId, req.params.id);
+  res.json({ success: true, data });
+});
+
 export const pendingPlacement = asyncHandler(async (req, res) => {
   const data = await botBridge.getPendingPlacement(req.query.tgId);
   res.json({ success: true, data });

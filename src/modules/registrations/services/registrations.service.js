@@ -76,30 +76,64 @@ const validateRoster = async ({ roster, team, mode }) => {
   }
 };
 
-const ensureSponsorMembership = async ({ tournament, tgIds }) => {
+const memberName = (u) =>
+  [u.firstName, u.lastName].filter(Boolean).join(" ") || u.tgUsername || "O'yinchi";
+
+// Notifies each unsubscribed member directly (best-effort: a member who never started
+// the bot can't be DM'd, so failures are swallowed and don't block registration).
+const notifyMissingMembers = (members) => {
+  for (const m of members) {
+    botClient
+      .sendMessage({
+        chatId: m.tgId,
+        text: "❗ Siz turnir homiy kanal(lar)iga obuna bo'lmagansiz. Quyidagi kanallarga obuna bo'ling:",
+        parseMode: "HTML",
+        buttons: m.missing.map((c) => ({ text: c.title, url: c.url })),
+      })
+      .catch(() => {});
+  }
+};
+
+// Per-member sponsor-channel check. Returns { ok, channels (union), members:[{tgId,name,missing}] }
+// and DMs each unsubscribed member (except the leader, who sees the list in the bot).
+// Used both at registration time and for the early team-level check on the register button.
+export const evaluateSponsorMembership = async ({ tournament, users, leaderId }) => {
   const tgChannels = (tournament.sponsorChannels || [])
     .filter((c) => c.type === "telegram")
     .map((c) => ({ channel: c, identifier: getTelegramChannelIdentifier(c) }))
     .filter((x) => x.identifier);
-  if (!tgChannels.length || !tgIds.length) return { ok: true, missing: [] };
+  const tgIds = users.map((u) => u.tgId).filter(Boolean);
+  if (!tgChannels.length || !tgIds.length) return { ok: true, channels: [], members: [] };
 
+  let map;
   try {
-    const map = await botClient.checkMembership({
+    map = await botClient.checkMembership({
       tgIds,
       chatIds: tgChannels.map((x) => x.identifier),
     });
-
-    const missing = [];
-    for (const { channel, identifier } of tgChannels) {
-      const notSubscribed = tgIds.some((tg) => map?.[tg]?.[identifier] === false);
-      if (notSubscribed) missing.push({ title: channel.title, url: channel.url });
-    }
-    return { ok: missing.length === 0, missing };
   } catch (err) {
-    // If the bot is unreachable, fail open with a soft warning rather than block all registrations.
-    // The Phase 3 plan calls for hard-reject on missing subs but the bot must be running.
+    // Bot unreachable - hard-reject (the check can't be trusted); bot must be running.
     throw new ApiError(503, "Obunani tekshirib bo'lmadi (bot bilan aloqa yo'q)");
   }
+
+  const leaderTgId = users.find((u) => String(u._id) === String(leaderId))?.tgId;
+
+  // Per-member missing channels + the union of channels (for the leader's keyboard).
+  const members = [];
+  const channelByUrl = new Map();
+  for (const u of users) {
+    const missing = tgChannels
+      .filter(({ identifier }) => map?.[u.tgId]?.[identifier] === false)
+      .map(({ channel }) => ({ title: channel.title, url: channel.url }));
+    if (missing.length) {
+      members.push({ tgId: u.tgId, name: memberName(u), missing });
+      for (const c of missing) channelByUrl.set(c.url, c);
+    }
+  }
+  // The leader already sees the names list in the bot, so don't also DM the leader.
+  const toNotify = members.filter((m) => String(m.tgId) !== String(leaderTgId));
+  if (toNotify.length) notifyMissingMembers(toNotify);
+  return { ok: members.length === 0, channels: [...channelByUrl.values()], members };
 };
 
 // Secret group: only the leader must be a member. chatId is auto-captured by the bot.
@@ -166,15 +200,20 @@ export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot
   const mainRoster = roster.filter((r) => r.slot === ROSTER_SLOT.MAIN);
   const rosterUserIds = roster.map((r) => r.user);
   const involvedIds = Array.from(new Set([String(leaderUser._id), ...rosterUserIds.map(String)]));
-  const users = await User.find({ _id: { $in: involvedIds } }, "tgId");
+  const users = await User.find(
+    { _id: { $in: involvedIds } },
+    "tgId firstName lastName tgUsername",
+  );
   const tgIds = users.map((u) => u.tgId).filter(Boolean);
   if (tgIds.length !== users.length) {
     throw new ApiError(400, "Barcha o'yinchilar Telegram orqali ro'yxatdan o'tgan bo'lishi kerak");
   }
 
-  const sub = await ensureSponsorMembership({ tournament, tgIds });
+  const sub = await evaluateSponsorMembership({ tournament, users, leaderId: leaderUser._id });
   if (!sub.ok) {
-    throw new ApiError(403, "Quyidagi kanallarga obuna bo'ling", { details: sub.missing });
+    throw new ApiError(403, "Ba'zi a'zolar homiy kanallarga obuna emas", {
+      details: { channels: sub.channels, members: sub.members.map((m) => ({ name: m.name })) },
+    });
   }
 
   // Secret group: leader-only membership check.

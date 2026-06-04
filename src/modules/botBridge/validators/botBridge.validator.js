@@ -121,6 +121,11 @@ export const openSlotsSchema = z.object({
   query: z.object({ tgId: tgIdSchema }).partial(),
 });
 
+export const sponsorCheckSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  query: z.object({ tgId: tgIdSchema }),
+});
+
 export const pendingPlacementSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
 });

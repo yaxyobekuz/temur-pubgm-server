@@ -195,6 +195,28 @@ export const registerForTournament = async (tgId, tournamentId, roster, day, tim
   });
 };
 
+// Early sponsor-subscription check (whole team) when the leader taps "Register",
+// before the roster is picked. Returns { ok, channels, members:[{name}] } and DMs missing members.
+export const checkTeamSponsorMembership = async (tgId, tournamentId) => {
+  const user = await findByTgId(tgId);
+  if (user.role !== ROLES.LEADER) {
+    throw new ApiError(403, "Faqat leader turnirga ro'yxatdan o'tkaza oladi");
+  }
+  const tournament = await tournamentsService.getById(tournamentId);
+  const team = await Team.findOne({ leader: user._id }).populate(
+    "members",
+    "tgId firstName lastName tgUsername",
+  );
+  if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
+
+  const sub = await registrationsService.evaluateSponsorMembership({
+    tournament,
+    users: team.members,
+    leaderId: user._id,
+  });
+  return { ok: sub.ok, channels: sub.channels, members: sub.members.map((m) => ({ name: m.name })) };
+};
+
 export const myRegistrations = async (tgId) => {
   const user = await findByTgId(tgId);
   // User'ning komandasi (leader bo'lsa o'zining, player bo'lsa a'zo bo'lgan)

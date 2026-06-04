@@ -16,6 +16,7 @@ import {
   registerTournamentSchema,
   myRegistrationsSchema,
   openSlotsSchema,
+  sponsorCheckSchema,
   pendingPlacementSchema,
   placeSchema,
 } from "./validators/botBridge.validator.js";
@@ -39,6 +40,7 @@ import {
   register as registerTournament,
   myRegistrations,
   openSlots,
+  sponsorCheck,
   pendingPlacement,
   placeIntoStage,
 } from "./handlers/tournaments.handler.js";
@@ -67,6 +69,7 @@ router.post("/teams/accept-invite", validate(acceptInviteSchema), acceptInvite);
 
 router.get("/tournaments", listTournaments);
 router.get("/tournaments/:id/open-slots", validate(openSlotsSchema), openSlots);
+router.get("/tournaments/:id/sponsor-check", validate(sponsorCheckSchema), sponsorCheck);
 router.get("/tournaments/:id", validate(tournamentIdSchema), getTournament);
 router.post(
   "/tournaments/:id/register",
