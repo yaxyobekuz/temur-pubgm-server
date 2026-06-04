@@ -45,13 +45,15 @@ const tournamentSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: Object.values(TOURNAMENT_STATUS),
-      default: TOURNAMENT_STATUS.PENDING,
+      default: TOURNAMENT_STATUS.DRAFT,
       index: true,
     },
     // Which stage (bosqich) the tournament is currently in; decoupled from status.
     currentStage: { type: Number, min: 1, default: 1 },
     sponsorChannels: [sponsorChannelSchema],
     secretGroup: { type: secretGroupSchema, default: () => ({}) },
+    // Admin contact link shown to teams in stage-advance notifications (for VIP slot requests).
+    adminContactUrl: { type: String, trim: true, default: "" },
     maps: [{ type: String, trim: true }],
     maxTeams: { type: Number, min: 1, default: 60 },
     stagesCount: {

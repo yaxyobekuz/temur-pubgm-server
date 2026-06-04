@@ -1,5 +1,23 @@
 import mongoose from "mongoose";
-import { DEFAULT_GROUP_SIZE } from "../constants/tournament.js";
+import { DEFAULT_GROUP_SIZE, TEAM_PLACEMENT_KIND } from "../constants/tournament.js";
+
+// One placed team inside a group. `registration` -> TournamentRegistration._id.
+// `kind` records how the team got here (normal / advanced / vip) for display & stats.
+const groupTeamSchema = new mongoose.Schema(
+  {
+    registration: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "TournamentRegistration",
+      required: true,
+    },
+    kind: {
+      type: String,
+      enum: Object.values(TEAM_PLACEMENT_KIND),
+      default: TEAM_PLACEMENT_KIND.NORMAL,
+    },
+  },
+  { _id: false },
+);
 
 const groupSchema = new mongoose.Schema(
   {
@@ -10,13 +28,17 @@ const groupSchema = new mongoose.Schema(
       index: true,
     },
     code: { type: String, trim: true, uppercase: true, required: true },
+    // Day/timeSlot place the group in the schedule; date/time labels live on Stage.schedule.
+    day: { type: Number, min: 1, required: true },
+    timeSlot: { type: Number, min: 1, required: true },
     maxTeams: { type: Number, min: 1, default: DEFAULT_GROUP_SIZE },
-    teams: [{ type: mongoose.Schema.Types.ObjectId }],
+    teams: [groupTeamSchema],
   },
   { timestamps: true },
 );
 
 groupSchema.index({ stage: 1, code: 1 }, { unique: true });
+groupSchema.index({ stage: 1, day: 1, timeSlot: 1 });
 
 groupSchema.set("toJSON", {
   transform: (_doc, ret) => {
