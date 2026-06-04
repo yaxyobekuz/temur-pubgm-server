@@ -15,6 +15,9 @@ import {
   tournamentIdSchema,
   registerTournamentSchema,
   myRegistrationsSchema,
+  openSlotsSchema,
+  pendingPlacementSchema,
+  placeSchema,
 } from "./validators/botBridge.validator.js";
 import registerOrLogin from "./handlers/registerOrLogin.handler.js";
 import getMe from "./handlers/getMe.handler.js";
@@ -35,6 +38,9 @@ import {
   getTournament,
   register as registerTournament,
   myRegistrations,
+  openSlots,
+  pendingPlacement,
+  placeIntoStage,
 } from "./handlers/tournaments.handler.js";
 import { listHelpLinks } from "./handlers/helpLinks.handler.js";
 
@@ -60,13 +66,16 @@ router.post("/teams/leave", validate(tgOnlySchema), leaveTeam);
 router.post("/teams/accept-invite", validate(acceptInviteSchema), acceptInvite);
 
 router.get("/tournaments", listTournaments);
+router.get("/tournaments/:id/open-slots", validate(openSlotsSchema), openSlots);
 router.get("/tournaments/:id", validate(tournamentIdSchema), getTournament);
 router.post(
   "/tournaments/:id/register",
   validate(registerTournamentSchema),
   registerTournament,
 );
+router.get("/registrations/pending-placement", validate(pendingPlacementSchema), pendingPlacement);
 router.get("/registrations", validate(myRegistrationsSchema), myRegistrations);
+router.post("/registrations/:id/place", validate(placeSchema), placeIntoStage);
 
 router.get("/help-links", listHelpLinks);
 

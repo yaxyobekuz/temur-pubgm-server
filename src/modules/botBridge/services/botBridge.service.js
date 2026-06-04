@@ -10,6 +10,7 @@ import * as usersService from "../../users/services/users.service.js";
 import * as teamsService from "../../teams/services/teams.service.js";
 import * as tournamentsService from "../../tournaments/services/tournaments.service.js";
 import * as registrationsService from "../../registrations/services/registrations.service.js";
+import * as stagesService from "../../stages/services/stages.service.js";
 import * as helpLinksService from "../../helpLinks/services/helpLinks.service.js";
 import { saveImageFromUrl } from "../../../utils/uploadFile.js";
 
@@ -143,7 +144,35 @@ export const listOpenTournaments = async () => {
 };
 
 export const getTournamentForBot = async (id) => {
-  return tournamentsService.getById(id);
+  const t = await tournamentsService.getById(id);
+  // Draft tournaments are admin-only; never expose them to the bot, even by direct id.
+  if (t.status === TOURNAMENT_STATUS.DRAFT) {
+    throw new ApiError(404, "Turnir topilmadi");
+  }
+  return t;
+};
+
+// Open day+time slots of a tournament's stage-1 group skeleton (cascading register menu).
+export const getOpenSlots = async (tournamentId) => {
+  const stage1 = await stagesService.getByTournamentAndOrder(tournamentId, 1);
+  return stagesService.listOpenSlots(stage1._id);
+};
+
+// The leader's team registration awaiting placement into its next/VIP stage, plus open slots.
+export const getPendingPlacement = async (tgId) => {
+  const user = await findByTgId(tgId);
+  return registrationsService.getPendingPlacement(user);
+};
+
+// Advanced/VIP team picks a day+time slot for its eligible stage.
+export const placeIntoStage = async (tgId, registrationId, day, timeSlot) => {
+  const user = await findByTgId(tgId);
+  return registrationsService.placeIntoStage({
+    leaderUser: user,
+    registrationId,
+    day,
+    timeSlot,
+  });
 };
 
 // --- Help links (bot-only) -------------------------------------------------
@@ -152,7 +181,7 @@ export const listHelpLinks = async () => {
   return helpLinksService.listActive();
 };
 
-export const registerForTournament = async (tgId, tournamentId, roster) => {
+export const registerForTournament = async (tgId, tournamentId, roster, day, timeSlot) => {
   const user = await findByTgId(tgId);
   if (user.role !== ROLES.LEADER) {
     throw new ApiError(403, "Faqat leader turnirga ro'yxatdan o'tkaza oladi");
@@ -161,6 +190,8 @@ export const registerForTournament = async (tgId, tournamentId, roster) => {
     tournamentId,
     leaderUser: user,
     roster,
+    day,
+    timeSlot,
   });
 };
 

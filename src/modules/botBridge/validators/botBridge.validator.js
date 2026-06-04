@@ -97,6 +97,8 @@ export const registerTournamentSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({
     tgId: tgIdSchema,
+    day: z.coerce.number().int().min(1),
+    timeSlot: z.coerce.number().int().min(1),
     roster: z
       .array(
         z.object({
@@ -112,4 +114,22 @@ export const registerTournamentSchema = z.object({
 
 export const myRegistrationsSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
+});
+
+export const openSlotsSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  query: z.object({ tgId: tgIdSchema }).partial(),
+});
+
+export const pendingPlacementSchema = z.object({
+  query: z.object({ tgId: tgIdSchema }),
+});
+
+export const placeSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({
+    tgId: tgIdSchema,
+    day: z.coerce.number().int().min(1),
+    timeSlot: z.coerce.number().int().min(1),
+  }),
 });

@@ -16,6 +16,8 @@ export const register = asyncHandler(async (req, res) => {
     req.body.tgId,
     req.params.id,
     req.body.roster,
+    req.body.day,
+    req.body.timeSlot,
   );
   res.status(201).json({
     success: true,
@@ -27,4 +29,24 @@ export const register = asyncHandler(async (req, res) => {
 export const myRegistrations = asyncHandler(async (req, res) => {
   const items = await botBridge.myRegistrations(req.query.tgId);
   res.json({ success: true, data: items });
+});
+
+export const openSlots = asyncHandler(async (req, res) => {
+  const data = await botBridge.getOpenSlots(req.params.id);
+  res.json({ success: true, data });
+});
+
+export const pendingPlacement = asyncHandler(async (req, res) => {
+  const data = await botBridge.getPendingPlacement(req.query.tgId);
+  res.json({ success: true, data });
+});
+
+export const placeIntoStage = asyncHandler(async (req, res) => {
+  const reg = await botBridge.placeIntoStage(
+    req.body.tgId,
+    req.params.id,
+    req.body.day,
+    req.body.timeSlot,
+  );
+  res.json({ success: true, data: reg, message: "Joy tanlandi" });
 });
