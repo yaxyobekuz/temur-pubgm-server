@@ -11,8 +11,6 @@ import {
   changeStatusSchema,
   addSponsorSchema,
   removeSponsorSchema,
-  setSecretGroupSchema,
-  idParamSchema,
   promoteSchema,
   openVipSchema,
 } from "./validators/tournaments.validator.js";
@@ -28,10 +26,6 @@ import {
   addSponsorChannel,
   removeSponsorChannel,
 } from "./handlers/sponsor.handler.js";
-import {
-  setSecretGroup,
-  clearSecretGroup,
-} from "./handlers/secretGroup.handler.js";
 import register from "../registrations/handlers/register.handler.js";
 import { registerSchema } from "../registrations/validators/registrations.validator.js";
 
@@ -106,20 +100,6 @@ router.delete(
   requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
   validate(removeSponsorSchema),
   removeSponsorChannel,
-);
-router.put(
-  "/:id/secret-group",
-  requireAuth,
-  requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
-  validate(setSecretGroupSchema),
-  setSecretGroup,
-);
-router.delete(
-  "/:id/secret-group",
-  requireAuth,
-  requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
-  validate(idParamSchema),
-  clearSecretGroup,
 );
 
 // Leader-scoped registration endpoint.

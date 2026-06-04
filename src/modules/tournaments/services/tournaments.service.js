@@ -410,24 +410,3 @@ export const removeSponsorChannel = async (id, channelId) => {
   await t.save();
   return withStages(t);
 };
-
-// Secret group: the leader must join it before registering. Both the invite url and
-// the numeric chatId are required; the admin reads the chatId via the bot's /id command.
-export const setSecretGroup = async (id, body) => {
-  const t = await getRawById(id);
-  t.secretGroup = {
-    url: body.url.trim(),
-    chatId: body.chatId.trim(),
-    title: body.title?.trim() || "",
-    resolvedAt: new Date(),
-  };
-  await t.save();
-  return withStages(t);
-};
-
-export const clearSecretGroup = async (id) => {
-  const t = await getRawById(id);
-  t.secretGroup = {};
-  await t.save();
-  return withStages(t);
-};

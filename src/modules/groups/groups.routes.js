@@ -7,10 +7,13 @@ import {
   listSchema,
   removeTeamSchema,
   addTeamSchema,
+  setSecretGroupSchema,
+  idParamSchema,
 } from "./validators/groups.validator.js";
 import list from "./handlers/list.handler.js";
 import removeTeam from "./handlers/removeTeam.handler.js";
 import addTeam from "./handlers/addTeam.handler.js";
+import { setSecretGroup, clearSecretGroup } from "./handlers/secretGroup.handler.js";
 
 const router = Router();
 
@@ -34,6 +37,20 @@ router.delete(
   requirePermission(PERMISSIONS.GROUPS_UPDATE),
   validate(removeTeamSchema),
   removeTeam,
+);
+router.put(
+  "/:id/secret-group",
+  requireAuth,
+  requirePermission(PERMISSIONS.GROUPS_UPDATE),
+  validate(setSecretGroupSchema),
+  setSecretGroup,
+);
+router.delete(
+  "/:id/secret-group",
+  requireAuth,
+  requirePermission(PERMISSIONS.GROUPS_UPDATE),
+  validate(idParamSchema),
+  clearSecretGroup,
 );
 
 export default router;

@@ -77,6 +77,28 @@ export const addTeam = async (id, registrationId, kind = TEAM_PLACEMENT_KIND.NOR
   return g;
 };
 
+// Secret group: the leader must join this group's private group before being placed here.
+// Both the invite url and the numeric chatId are required; the admin reads the chatId via
+// the bot's /id command. Configured per group (day/time/group) up front.
+export const setSecretGroup = async (groupId, body) => {
+  const g = await getById(groupId);
+  g.secretGroup = {
+    url: body.url.trim(),
+    chatId: body.chatId.trim(),
+    title: body.title?.trim() || "",
+    resolvedAt: new Date(),
+  };
+  await g.save();
+  return g;
+};
+
+export const clearSecretGroup = async (groupId) => {
+  const g = await getById(groupId);
+  g.secretGroup = {};
+  await g.save();
+  return g;
+};
+
 // Stage groups + how many more teams can still be placed (= VIP capacity remaining).
 export const getStageGroupsWithCapacity = async (stageId) => {
   const stage = await Stage.findById(stageId);

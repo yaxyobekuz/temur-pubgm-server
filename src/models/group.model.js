@@ -1,6 +1,18 @@
 import mongoose from "mongoose";
 import { DEFAULT_GROUP_SIZE, TEAM_PLACEMENT_KIND } from "../constants/tournament.js";
 
+// Per-group private group the team leader must join before being placed into this group.
+// chatId is read via the bot's /id command. Configured per day/time/group by the admin.
+const secretGroupSchema = new mongoose.Schema(
+  {
+    url: { type: String, trim: true, default: "" },
+    chatId: { type: String, trim: true, default: "" },
+    title: { type: String, trim: true, default: "" },
+    resolvedAt: { type: Date, default: null },
+  },
+  { _id: false },
+);
+
 // One placed team inside a group. `registration` -> TournamentRegistration._id.
 // `kind` records how the team got here (normal / advanced / vip) for display & stats.
 const groupTeamSchema = new mongoose.Schema(
@@ -33,6 +45,7 @@ const groupSchema = new mongoose.Schema(
     timeSlot: { type: Number, min: 1, required: true },
     maxTeams: { type: Number, min: 1, default: DEFAULT_GROUP_SIZE },
     teams: [groupTeamSchema],
+    secretGroup: { type: secretGroupSchema, default: () => ({}) },
   },
   { timestamps: true },
 );

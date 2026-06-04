@@ -136,13 +136,12 @@ export const evaluateSponsorMembership = async ({ tournament, users, leaderId })
   return { ok: members.length === 0, channels: [...channelByUrl.values()], members };
 };
 
-// Secret group: only the leader must be a member. chatId is auto-captured by the bot.
-const ensureSecretGroupMembership = async ({ tournament, leaderTgId }) => {
-  const sg = tournament.secretGroup;
-  if (!sg || !sg.url) return { ok: true }; // no secret group configured
-  if (!sg.chatId) {
-    // The group exists but the bot hasn't captured the chatId yet (not added as admin).
-    throw new ApiError(503, "Maxfiy guruh hali to'liq sozlanmagan, keyinroq urinib ko'ring");
+// Secret group: per-group, mandatory. The leader must be a member of THIS group's private
+// group before being placed into it. A group without a configured secret group blocks placement.
+const ensureSecretGroupMembership = async ({ group, leaderTgId }) => {
+  const sg = group?.secretGroup;
+  if (!sg || !sg.url || !sg.chatId) {
+    throw new ApiError(400, "Bu guruh uchun maxfiy guruh sozlanmagan. Admin bilan bog'laning.");
   }
   if (!leaderTgId) return { ok: false, group: { title: sg.title, url: sg.url } };
 
@@ -216,9 +215,9 @@ export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot
     });
   }
 
-  // Secret group: leader-only membership check.
+  // Secret group: leader-only membership check against the target group (the chosen day/time slot).
   const leaderTgId = users.find((u) => String(u._id) === String(leaderUser._id))?.tgId;
-  const sg = await ensureSecretGroupMembership({ tournament, leaderTgId });
+  const sg = await ensureSecretGroupMembership({ group: openGroup, leaderTgId });
   if (!sg.ok) {
     throw new ApiError(403, "Maxfiy guruhga qo'shiling", { secretGroup: sg.group });
   }
@@ -395,6 +394,14 @@ export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot
   const openGroup = await stagesService.findOpenGroupForSlot(stage._id, day, timeSlot);
   if (!openGroup) {
     throw new ApiError(409, "Tanlangan kun/vaqt to'lgan, boshqasini tanlang");
+  }
+
+  // Secret group: leader must join the chosen group's private group before being placed.
+  const leaderTgId =
+    leaderUser.tgId || (await User.findById(leaderUser._id, "tgId"))?.tgId;
+  const sg = await ensureSecretGroupMembership({ group: openGroup, leaderTgId });
+  if (!sg.ok) {
+    throw new ApiError(403, "Maxfiy guruhga qo'shiling", { secretGroup: sg.group });
   }
 
   const kind =
