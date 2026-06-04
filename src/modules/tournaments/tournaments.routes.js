@@ -13,6 +13,7 @@ import {
   removeSponsorSchema,
   promoteSchema,
   openVipSchema,
+  finalPlacementsSchema,
 } from "./validators/tournaments.validator.js";
 import list from "./handlers/list.handler.js";
 import getById from "./handlers/getById.handler.js";
@@ -22,6 +23,7 @@ import remove from "./handlers/remove.handler.js";
 import changeStatus from "./handlers/changeStatus.handler.js";
 import promote from "./handlers/promote.handler.js";
 import openVip from "./handlers/vip.handler.js";
+import recordFinalPlacements from "./handlers/finalPlacements.handler.js";
 import {
   addSponsorChannel,
   removeSponsorChannel,
@@ -86,6 +88,13 @@ router.post(
   requirePermission(PERMISSIONS.GROUPS_UPDATE),
   validate(openVipSchema),
   openVip,
+);
+router.post(
+  "/:id/final-placements",
+  requireAuth,
+  requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
+  validate(finalPlacementsSchema),
+  recordFinalPlacements,
 );
 router.post(
   "/:id/sponsor-channels",

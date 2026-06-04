@@ -27,6 +27,8 @@ const groupTeamSchema = new mongoose.Schema(
       enum: Object.values(TEAM_PLACEMENT_KIND),
       default: TEAM_PLACEMENT_KIND.NORMAL,
     },
+    // Final natija: admin 1/2/3 qayd etgach to'ldiriladi; aks holda null. Doimiy saqlanadi.
+    placement: { type: Number, enum: [1, 2, 3], default: null },
   },
   { _id: false },
 );

@@ -34,6 +34,7 @@ export const listByStage = async (stageId) => {
       return {
         registrationId: String(t.registration),
         kind: t.kind,
+        placement: t.placement ?? null,
         team: r?.team || null,
       };
     }),

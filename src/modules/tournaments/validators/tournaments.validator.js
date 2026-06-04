@@ -87,6 +87,26 @@ export const openVipSchema = z.object({
   }),
 });
 
+export const finalPlacementsSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({
+    placements: z
+      .array(
+        z.object({
+          registrationId: z.string().min(1),
+          place: z.number().int().min(1).max(3),
+        }),
+      )
+      .min(1)
+      .max(3)
+      .refine((a) => new Set(a.map((p) => p.place)).size === a.length, "O'rin takrorlanmasligi kerak")
+      .refine(
+        (a) => new Set(a.map((p) => p.registrationId)).size === a.length,
+        "Komanda takrorlanmasligi kerak",
+      ),
+  }),
+});
+
 export const addSponsorSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z

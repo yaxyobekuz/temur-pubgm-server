@@ -2,6 +2,7 @@ import Tournament from "../../../models/tournament.model.js";
 import Stage from "../../../models/stage.model.js";
 import Group from "../../../models/group.model.js";
 import HelpLink from "../../../models/helpLink.model.js";
+import Team from "../../../models/team.model.js";
 import TournamentRegistration, {
   REGISTRATION_STATUS,
 } from "../../../models/tournamentRegistration.model.js";
@@ -19,6 +20,7 @@ import {
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 import * as stagesService from "../../stages/services/stages.service.js";
 import * as groupsService from "../../groups/services/groups.service.js";
+import * as notify from "../../../services/notify.service.js";
 import logger from "../../../config/logger.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -240,6 +242,21 @@ const enqueuePromoteBroadcast = async (tournament, nextOrder, currentUser) => {
   }
 };
 
+// Berilgan registratsiyalar leaderlariga matnli DM (matn `(name) => text` orqali, per-leader).
+// promote (o'tgan komandalar) va final (g'oliblar) ikkalasi ishlatadi - N+1 dan qochish uchun batch.
+const dmRegistrationLeaders = async (regIds, makeText) => {
+  if (!regIds.length) return;
+  const regs = await TournamentRegistration.find({ _id: { $in: regIds } }, "team").lean();
+  const teams = await Team.find({ _id: { $in: regs.map((r) => r.team) } }, "leader").lean();
+  const teamLeader = new Map(teams.map((t) => [String(t._id), t.leader]));
+  const recipients = await notify.resolveRecipients(teams.map((t) => t.leader));
+  for (const reg of regs) {
+    const leaderId = teamLeader.get(String(reg.team));
+    const rec = recipients.get(String(leaderId));
+    if (rec) await notify.notifyUser({ tgId: rec.tgId, text: makeText(reg, rec) });
+  }
+};
+
 export const changeStatus = async (id, next, currentUser) => {
   const t = await getRawById(id);
   if (!Object.values(TOURNAMENT_STATUS).includes(next)) {
@@ -312,6 +329,13 @@ export const promoteToNext = async (id, groupsPayload, currentUser) => {
 
   await enqueuePromoteBroadcast(t, nextOrder, currentUser);
 
+  // O'tgan komandalar leaderlariga maqsadli tabrik (umumiy broadcast'ga qo'shimcha).
+  const stageLabel = getStageLabel(nextOrder, t.stagesCount);
+  await dmRegistrationLeaders(
+    advancingIds,
+    () => `🎉 Tabriklaymiz! Siz <b>${stageLabel}</b> bosqichiga o'tdingiz. Bot orqali kun va vaqtni tanlang.`,
+  );
+
   return withStages(t);
 };
 
@@ -351,6 +375,72 @@ export const openVipSlot = async (id, registrationId, currentUser) => {
   reg.eligibleStage = t.currentStage;
   reg.nextPlacementKind = TEAM_PLACEMENT_KIND.VIP;
   await reg.save();
+
+  // Leaderga VIP slot xabari.
+  await dmRegistrationLeaders(
+    [reg._id],
+    () => "🎟 Sizga VIP slot berildi! Bot orqali kun va vaqtni tanlang.",
+  );
+
+  return withStages(t);
+};
+
+// Final bosqich natijasi: admin 1/2/3-o'rinni qayd etadi. Natija guruh team yozuviga DOIMIY
+// saqlanadi (group.teams[].placement). Turnir statusiga tegmaydi - g'oliblarga tabrik DM yuboradi.
+// Idempotent: qayta yuborilsa final guruh o'rinlari avval tozalanib, qaytadan yoziladi.
+export const recordFinalPlacements = async (id, placements, currentUser) => {
+  const t = await getRawById(id);
+  if (t.currentStage !== t.stagesCount) {
+    throw new ApiError(400, "Faqat final bosqichida natija qayd etiladi");
+  }
+  if (!Array.isArray(placements) || !placements.length) {
+    throw new ApiError(400, "O'rinlarni tanlang");
+  }
+  const places = new Set();
+  const regIds = new Set();
+  for (const p of placements) {
+    if (p.place < 1 || p.place > 3) throw new ApiError(400, "O'rin 1..3 oralig'ida bo'lishi kerak");
+    if (places.has(p.place)) throw new ApiError(400, "O'rin takrorlanmasligi kerak");
+    if (regIds.has(String(p.registrationId))) {
+      throw new ApiError(400, "Komanda takrorlanmasligi kerak");
+    }
+    places.add(p.place);
+    regIds.add(String(p.registrationId));
+  }
+
+  const stage = await stagesService.getByTournamentAndOrder(t._id, t.stagesCount);
+  const groups = await Group.find({ stage: stage._id });
+  // registrationId -> { group, team subdoc }
+  const byReg = new Map();
+  for (const g of groups) {
+    for (const tm of g.teams) byReg.set(String(tm.registration), { group: g, team: tm });
+  }
+  for (const p of placements) {
+    if (!byReg.has(String(p.registrationId))) {
+      throw new ApiError(404, "Komanda final guruhida emas");
+    }
+  }
+
+  // Overwrite: avval shu guruh(lar)dagi barcha o'rinlarni tozalab, keyin yozamiz.
+  const touched = new Set();
+  for (const g of groups) {
+    for (const tm of g.teams) tm.placement = null;
+    touched.add(g);
+  }
+  for (const p of placements) {
+    byReg.get(String(p.registrationId)).team.placement = p.place;
+  }
+  for (const g of touched) {
+    g.markModified("teams");
+    await g.save();
+  }
+
+  // G'oliblarga tabrik (best-effort).
+  const placeByReg = new Map(placements.map((p) => [String(p.registrationId), p.place]));
+  await dmRegistrationLeaders(
+    placements.map((p) => p.registrationId),
+    (reg) => `🏆 Tabriklaymiz! Siz <b>${placeByReg.get(String(reg._id))}-o'rin</b>ni egallabdingiz!`,
+  );
 
   return withStages(t);
 };
