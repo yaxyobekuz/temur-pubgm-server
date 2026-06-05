@@ -88,7 +88,7 @@ const notifyMissingMembers = (members) => {
     botClient
       .sendMessage({
         chatId: m.tgId,
-        text: "❗ Siz turnir homiy kanal(lar)iga obuna bo'lmagansiz. Quyidagi kanallarga obuna bo'ling:",
+        text: "❗ Siz turnir homiy kanal(lar)iga obuna bo'lmagansiz. Quyidagi kanallarga obuna bo'ling:\n\n⚠️ Diqqat! Homiy kanallardan chiqib ketgan taqdirda, siz va jamoangiz turnirdan chetlatilishingiz mumkin.",
         parseMode: "HTML",
         buttons: m.missing.map((c) => ({ text: c.title, url: c.url })),
       })
