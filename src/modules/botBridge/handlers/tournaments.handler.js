@@ -57,6 +57,7 @@ export const placeIntoStage = asyncHandler(async (req, res) => {
     req.params.id,
     req.body.day,
     req.body.timeSlot,
+    req.body.roster,
   );
   res.json({ success: true, data: reg, message: "Joy tanlandi" });
 });

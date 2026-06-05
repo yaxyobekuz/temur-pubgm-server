@@ -180,14 +180,16 @@ export const getPendingPlacement = async (tgId) => {
   return registrationsService.getPendingPlacement(user);
 };
 
-// Advanced/VIP team picks a day+time slot for its eligible stage.
-export const placeIntoStage = async (tgId, registrationId, day, timeSlot) => {
+// Advanced/VIP team picks a day+time slot for its eligible stage. `roster` is only sent by
+// brand-new VIP teams whose registration has no roster yet.
+export const placeIntoStage = async (tgId, registrationId, day, timeSlot, roster) => {
   const user = await findByTgId(tgId);
   return registrationsService.placeIntoStage({
     leaderUser: user,
     registrationId,
     day,
     timeSlot,
+    roster,
   });
 };
 

@@ -257,6 +257,16 @@ const dmRegistrationLeaders = async (regIds, makeText) => {
   }
 };
 
+// Barcha komanda a'zolariga bir xil matnli DM (best-effort).
+const notifyTeamMembers = async (teamId, text) => {
+  const team = await Team.findById(teamId, "members").lean();
+  if (!team?.members?.length) return;
+  const recipients = await notify.resolveRecipients(team.members);
+  for (const rec of recipients.values()) {
+    await notify.notifyUser({ tgId: rec.tgId, text });
+  }
+};
+
 export const changeStatus = async (id, next, currentUser) => {
   const t = await getRawById(id);
   if (!Object.values(TOURNAMENT_STATUS).includes(next)) {
@@ -339,47 +349,75 @@ export const promoteToNext = async (id, groupsPayload, currentUser) => {
   return withStages(t);
 };
 
-// Open a VIP slot: grant a non-advanced team eligibility for the current stage. The team then
-// picks a day+time slot via the bot, just like advanced teams. Enforces remaining capacity.
-export const openVipSlot = async (id, registrationId, currentUser) => {
+// Open a VIP slot: admin grants ANY team (even one not registered) eligibility for ANY stage.
+// A new registration is created if the team has none. The team then picks its roster + a
+// day/time slot via the bot (no sponsor-channel requirement; secret group still mandatory).
+// Enforces remaining capacity of the chosen stage.
+export const openVipSlot = async (id, { teamId, stageOrder }, currentUser) => {
   const t = await getRawById(id);
-  if (t.status !== TOURNAMENT_STATUS.ONGOING) {
-    throw new ApiError(400, "Turnir aktiv bosqichda emas");
+  // Allowed while open for registration (PENDING) or in progress (ONGOING); not DRAFT/FINISHED.
+  if (t.status !== TOURNAMENT_STATUS.PENDING && t.status !== TOURNAMENT_STATUS.ONGOING) {
+    throw new ApiError(400, "Bu turnirga komanda qo'shib bo'lmaydi");
   }
-  if (t.currentStage < 2) {
-    throw new ApiError(400, "VIP slot faqat 2-bosqichdan boshlab beriladi");
+  // Stage is auto-resolved: registration phase -> stage 1, in progress -> the current stage.
+  const resolvedStage =
+    stageOrder ?? (t.status === TOURNAMENT_STATUS.PENDING ? 1 : t.currentStage);
+  if (!Number.isInteger(resolvedStage) || resolvedStage < 1 || resolvedStage > t.stagesCount) {
+    throw new ApiError(400, "Noto'g'ri bosqich");
   }
 
-  const stage = await stagesService.getByTournamentAndOrder(t._id, t.currentStage);
+  const team = await Team.findById(teamId, "members");
+  if (!team) throw new ApiError(404, "Komanda topilmadi");
+
+  // Ensure the chosen stage's group skeleton exists (idempotent) - needed when granting a VIP
+  // slot for a future stage that hasn't been built yet.
+  const stage = await stagesService.getByTournamentAndOrder(t._id, resolvedStage);
+  await stagesService.buildSkeleton(stage);
+
+  // Capacity of the chosen stage: placed teams + teams already pending placement into it.
   const { vipRemaining } = await groupsService.getStageGroupsWithCapacity(stage._id);
-  // Count teams already granted eligibility for this stage but not yet placed.
   const pending = await TournamentRegistration.countDocuments({
     tournament: t._id,
-    eligibleStage: t.currentStage,
+    eligibleStage: resolvedStage,
     $expr: { $gt: ["$eligibleStage", "$placedStage"] },
   });
   if (vipRemaining - pending <= 0) {
     throw new ApiError(409, "Bu bosqich uchun VIP slot qolmadi");
   }
 
-  const reg = await TournamentRegistration.findOne({
-    _id: registrationId,
-    tournament: t._id,
-    status: REGISTRATION_STATUS.REGISTERED,
-  });
-  if (!reg) throw new ApiError(404, "Komanda topilmadi");
-  if (reg.eligibleStage >= t.currentStage) {
-    throw new ApiError(409, "Bu komanda allaqachon keyingi bosqichga o'tgan");
+  let reg = await TournamentRegistration.findOne({ tournament: t._id, team: teamId });
+  if (reg) {
+    if (reg.status !== REGISTRATION_STATUS.REGISTERED) {
+      throw new ApiError(409, "Bu komanda turnirdan chiqarilgan, avval qaytaring");
+    }
+    if (reg.placedStage >= resolvedStage) {
+      throw new ApiError(409, "Bu komanda allaqachon shu bosqichda o'ynayapti");
+    }
+    if (reg.eligibleStage >= resolvedStage && reg.eligibleStage > reg.placedStage) {
+      throw new ApiError(409, "Bu komanda allaqachon shu bosqichga joy tanlamoqda");
+    }
+    reg.eligibleStage = resolvedStage;
+    reg.nextPlacementKind = TEAM_PLACEMENT_KIND.VIP;
+    await reg.save();
+  } else {
+    // Brand-new VIP team: no roster yet - the leader picks it in the bot before placement.
+    reg = await TournamentRegistration.create({
+      tournament: t._id,
+      team: teamId,
+      status: REGISTRATION_STATUS.REGISTERED,
+      roster: [],
+      eligibleStage: resolvedStage,
+      placedStage: 0,
+      nextPlacementKind: TEAM_PLACEMENT_KIND.VIP,
+      registeredAt: new Date(),
+    });
   }
 
-  reg.eligibleStage = t.currentStage;
-  reg.nextPlacementKind = TEAM_PLACEMENT_KIND.VIP;
-  await reg.save();
-
-  // Leaderga VIP slot xabari.
-  await dmRegistrationLeaders(
-    [reg._id],
-    () => "🎟 Sizga VIP slot berildi! Bot orqali kun va vaqtni tanlang.",
+  // Barcha komanda a'zolariga VIP slot xabari.
+  const stageLabel = getStageLabel(resolvedStage, t.stagesCount);
+  await notifyTeamMembers(
+    teamId,
+    `🎟 Sizga <b>${stageLabel}</b> uchun VIP slot berildi! Bot orqali asosiy o'yinchilarni va kun/vaqtni tanlang.`,
   );
 
   return withStages(t);

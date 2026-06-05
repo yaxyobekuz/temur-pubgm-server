@@ -83,7 +83,9 @@ export const promoteSchema = z.object({
 export const openVipSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({
-    registrationId: z.string().min(1),
+    teamId: z.string().min(1),
+    // Optional: the server auto-resolves the stage from the tournament status when omitted.
+    stageOrder: z.coerce.number().int().min(1).optional(),
   }),
 });
 

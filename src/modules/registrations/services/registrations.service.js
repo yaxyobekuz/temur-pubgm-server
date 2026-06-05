@@ -374,13 +374,16 @@ export const setGroup = async (id, groupId) => {
 // The leader's team registration that has been advanced/VIP-invited to a stage it has not
 // yet picked a slot for (eligibleStage > placedStage), plus the open slots of that stage.
 export const getPendingPlacement = async (leaderUser) => {
-  const team = await Team.findOne({ leader: leaderUser._id });
+  const team = await Team.findOne({ leader: leaderUser._id }).populate(
+    "members",
+    "firstName lastName tgUsername",
+  );
   if (!team) return null;
   const reg = await TournamentRegistration.findOne({
     team: team._id,
     status: REGISTRATION_STATUS.REGISTERED,
     $expr: { $gt: ["$eligibleStage", "$placedStage"] },
-  }).populate("tournament", "title status stagesCount");
+  }).populate("tournament", "title status stagesCount mode");
   if (!reg) return null;
 
   const stage = await stagesService.getByTournamentAndOrder(
@@ -390,6 +393,8 @@ export const getPendingPlacement = async (leaderUser) => {
   const scheduleReady = stagesService.isScheduleComplete(stage);
   // If the next stage's schedule is not set yet, surface no slots (the bot shows a notice).
   const openSlots = scheduleReady ? await stagesService.listOpenSlots(stage._id) : { days: [] };
+  // VIP team granted a slot before ever registering has no roster yet - the bot must ask for it.
+  const needsRoster = !reg.roster?.length;
   return {
     registrationId: String(reg._id),
     tournament: { _id: reg.tournament._id, title: reg.tournament.title },
@@ -398,11 +403,22 @@ export const getPendingPlacement = async (leaderUser) => {
     kind: reg.nextPlacementKind,
     scheduleReady,
     openSlots,
+    needsRoster,
+    mode: reg.tournament.mode,
+    members: needsRoster
+      ? (team.members || []).map((m) => ({
+          _id: String(m._id),
+          firstName: m.firstName,
+          lastName: m.lastName,
+          tgUsername: m.tgUsername,
+        }))
+      : [],
   };
 };
 
 // Place an advanced/VIP team into a chosen day+time slot of its eligible (next) stage.
-export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot }) => {
+// `roster` is required only for a brand-new VIP team whose registration has no roster yet.
+export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot, roster }) => {
   const team = await Team.findOne({ leader: leaderUser._id });
   if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
 
@@ -416,6 +432,14 @@ export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot
     throw new ApiError(400, "Bu bosqich uchun joy tanlash kerak emas");
   }
   if (!day || !timeSlot) throw new ApiError(400, "Kun va vaqtni tanlang");
+
+  // VIP team without a roster yet: the leader sends it now. Existing roster -> ignore input.
+  if (!reg.roster?.length) {
+    if (!roster?.length) throw new ApiError(400, "Avval asosiy o'yinchilarni tanlang");
+    const tournament = await Tournament.findById(reg.tournament, "mode");
+    await validateRoster({ roster, team, mode: tournament.mode });
+    reg.roster = roster;
+  }
 
   const stage = await stagesService.getByTournamentAndOrder(reg.tournament, reg.eligibleStage);
   if (!stagesService.isScheduleComplete(stage)) {

@@ -143,5 +143,17 @@ export const placeSchema = z.object({
     tgId: tgIdSchema,
     day: z.coerce.number().int().min(1),
     timeSlot: z.coerce.number().int().min(1),
+    // Only sent by a brand-new VIP team whose registration has no roster yet.
+    roster: z
+      .array(
+        z.object({
+          user: z.string().min(1),
+          slot: z.enum(Object.values(ROSTER_SLOT)),
+          position: z.number().int().min(0).optional(),
+        }),
+      )
+      .min(1)
+      .max(20)
+      .optional(),
   }),
 });
