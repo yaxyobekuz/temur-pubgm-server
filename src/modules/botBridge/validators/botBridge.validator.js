@@ -12,6 +12,8 @@ export const registerOrLoginSchema = z.object({
     lastName: z.string().max(60).optional(),
     contactPhone: z.string().min(7).max(20),
     regionId: z.string().min(1),
+    // Yangi foydalanuvchi tanlagan rol (sardor/o'yinchi). Mavjud userga ta'sir qilmaydi.
+    role: z.enum([...SELF_SWITCHABLE_ROLES]).optional(),
   }),
 });
 

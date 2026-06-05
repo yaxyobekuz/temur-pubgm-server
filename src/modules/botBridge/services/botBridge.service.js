@@ -44,10 +44,12 @@ export const registerOrLogin = async (body) => {
     return { user: existing, created: false };
   }
 
+  // Yangi user tanlagan rol (sardor/o'yinchi); bo'lmasa - o'yinchi.
+  const role = body.role === ROLES.LEADER ? ROLES.LEADER : ROLES.PLAYER;
   const user = await User.create({
     firstName: body.firstName?.trim() || "Foydalanuvchi",
     lastName: body.lastName?.trim() || "",
-    role: ROLES.PLAYER,
+    role,
     tgId,
     tgUsername: (body.tgUsername || "").toLowerCase(),
     contactPhone: phone,
