@@ -47,6 +47,7 @@ import {
   placeIntoStage,
 } from "./handlers/tournaments.handler.js";
 import { listHelpLinks } from "./handlers/helpLinks.handler.js";
+import { getSettings } from "./handlers/settings.handler.js";
 
 // All routes here are mounted under `/api/bot/*` and protected by the botAuth middleware.
 const router = Router();
@@ -88,5 +89,6 @@ router.get("/registrations", validate(myRegistrationsSchema), myRegistrations);
 router.post("/registrations/:id/place", validate(placeSchema), placeIntoStage);
 
 router.get("/help-links", listHelpLinks);
+router.get("/settings", getSettings);
 
 export default router;

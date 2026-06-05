@@ -32,6 +32,9 @@ export const PERMISSIONS = Object.freeze({
   HELP_LINKS_CREATE: "help_links.create",
   HELP_LINKS_UPDATE: "help_links.update",
   HELP_LINKS_DELETE: "help_links.delete",
+
+  SETTINGS_READ: "settings.read",
+  SETTINGS_UPDATE: "settings.update",
 });
 
 export const PERMISSION_LABELS = {
@@ -67,4 +70,7 @@ export const PERMISSION_LABELS = {
   [PERMISSIONS.HELP_LINKS_CREATE]: { label: "Yordam havolasi qo'shish", group: "help_links" },
   [PERMISSIONS.HELP_LINKS_UPDATE]: { label: "Yordam havolasini tahrirlash", group: "help_links" },
   [PERMISSIONS.HELP_LINKS_DELETE]: { label: "Yordam havolasini o'chirish", group: "help_links" },
+
+  [PERMISSIONS.SETTINGS_READ]: { label: "Sozlamalarni ko'rish", group: "settings" },
+  [PERMISSIONS.SETTINGS_UPDATE]: { label: "Sozlamalarni tahrirlash", group: "settings" },
 };

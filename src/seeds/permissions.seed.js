@@ -64,6 +64,8 @@ const seed = async () => {
           permIds[PERMISSIONS.HELP_LINKS_CREATE],
           permIds[PERMISSIONS.HELP_LINKS_UPDATE],
           permIds[PERMISSIONS.HELP_LINKS_DELETE],
+          permIds[PERMISSIONS.SETTINGS_READ],
+          permIds[PERMISSIONS.SETTINGS_UPDATE],
         ].filter(Boolean),
       },
     },

@@ -13,6 +13,7 @@ import * as tournamentsService from "../../tournaments/services/tournaments.serv
 import * as registrationsService from "../../registrations/services/registrations.service.js";
 import * as stagesService from "../../stages/services/stages.service.js";
 import * as helpLinksService from "../../helpLinks/services/helpLinks.service.js";
+import * as settingsService from "../../settings/services/settings.service.js";
 import { saveImageFromUrl } from "../../../utils/uploadFile.js";
 
 export const registerOrLogin = async (body) => {
@@ -192,6 +193,13 @@ export const placeIntoStage = async (tgId, registrationId, day, timeSlot) => {
 
 export const listHelpLinks = async () => {
   return helpLinksService.listActive();
+};
+
+// --- Settings (bot-only) ---------------------------------------------------
+
+// Panel-wide settings the bot needs: the VIP-slot admin contact link.
+export const getSettingsForBot = async () => {
+  return { vipAdminUrl: await settingsService.getVipAdminUrl() };
 };
 
 export const registerForTournament = async (tgId, tournamentId, roster, day, timeSlot) => {
