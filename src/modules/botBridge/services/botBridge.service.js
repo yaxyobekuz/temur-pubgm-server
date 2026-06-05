@@ -137,13 +137,13 @@ export const acceptInvite = async (tgId, inviteCode) => {
 
 // --- Tournaments (bot-only) ------------------------------------------------
 
+// Show both PENDING (open for registration) and ONGOING (in progress) tournaments so
+// leaders can still reach a tournament's detail (e.g. to request a VIP slot) after it starts.
 export const listOpenTournaments = async () => {
-  const { items } = await tournamentsService.list({
-    status: TOURNAMENT_STATUS.PENDING,
-    page: 1,
-    limit: 100,
-  });
-  return items;
+  const { items } = await tournamentsService.list({ page: 1, limit: 100 });
+  return items.filter((t) =>
+    [TOURNAMENT_STATUS.PENDING, TOURNAMENT_STATUS.ONGOING].includes(t.status),
+  );
 };
 
 export const getTournamentForBot = async (id) => {
