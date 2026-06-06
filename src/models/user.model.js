@@ -41,6 +41,11 @@ const userSchema = new mongoose.Schema(
     contactPhone: { type: String, trim: true, default: "" },
     // Manually entered contact handle (independent of the auto-captured tgUsername).
     contactUsername: { type: String, trim: true, lowercase: true, default: "" },
+    // Tournaments whose sponsor-subscription reminder DM failed to deliver (bot blocked) -
+    // resent on the user's next /start, cleared once delivered or the user is subscribed.
+    pendingSponsorTournaments: [
+      { type: mongoose.Schema.Types.ObjectId, ref: "Tournament" },
+    ],
   },
   { timestamps: true },
 );

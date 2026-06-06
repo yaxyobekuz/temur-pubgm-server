@@ -81,29 +81,59 @@ const validateRoster = async ({ roster, team, mode }) => {
 const memberName = (u) =>
   [u.firstName, u.lastName].filter(Boolean).join(" ") || u.tgUsername || "O'yinchi";
 
-// Notifies each unsubscribed member directly (best-effort: a member who never started
-// the bot can't be DM'd, so failures are swallowed and don't block registration).
-const notifyMissingMembers = (members) => {
-  for (const m of members) {
-    botClient
-      .sendMessage({
-        chatId: m.tgId,
-        text: "❗ Siz turnir homiy kanal(lar)iga obuna bo'lmagansiz. Quyidagi kanallarga obuna bo'ling:\n\n⚠️ Diqqat! Homiy kanallardan chiqib ketgan taqdirda, siz va jamoangiz turnirdan chetlatilishingiz mumkin.",
-        parseMode: "HTML",
-        buttons: m.missing.map((c) => ({ text: c.title, url: c.url })),
-      })
-      .catch(() => {});
-  }
-};
+// Single source of the sponsor-subscription reminder (initial DM, /start resend, "Mening turnirlarim").
+export const buildSponsorReminderMessage = (tournament, channels) => ({
+  text:
+    `❗ <b>${tournament.title}</b> turniri homiy kanal(lar)iga obuna bo'lmagansiz. ` +
+    "Quyidagi kanal(lar)ga obuna bo'ling:\n\n" +
+    "⚠️ Diqqat! Homiy kanallardan chiqib ketgan taqdirda, siz va jamoangiz turnirdan chetlatilishingiz mumkin.",
+  buttons: channels.map((c) => ({ text: c.title, url: c.url })),
+});
 
-// Per-member sponsor-channel check. Returns { ok, channels (union), members:[{tgId,name,missing}] }
-// and DMs each unsubscribed member (except the leader, who sees the list in the bot).
-// Used both at registration time and for the early team-level check on the register button.
-export const evaluateSponsorMembership = async ({ tournament, users, leaderId }) => {
-  const tgChannels = (tournament.sponsorChannels || [])
+// Tournament's Telegram sponsor channels paired with their resolved chat identifier.
+const telegramSponsorChannels = (tournament) =>
+  (tournament.sponsorChannels || [])
     .filter((c) => c.type === "telegram")
     .map((c) => ({ channel: c, identifier: getTelegramChannelIdentifier(c) }))
     .filter((x) => x.identifier);
+
+// Channels a single user is personally not subscribed to (TG only). Read-only: no DM,
+// no pending bookkeeping. Throws 503 if the bot is unreachable (the check can't be trusted).
+export const getMissingChannelsForUser = async (tournament, user) => {
+  const tgChannels = telegramSponsorChannels(tournament);
+  if (!tgChannels.length || !user.tgId) return [];
+  let map;
+  try {
+    map = await botClient.checkMembership({
+      tgIds: [user.tgId],
+      chatIds: tgChannels.map((x) => x.identifier),
+    });
+  } catch (err) {
+    throw new ApiError(503, "Obunani tekshirib bo'lmadi (bot bilan aloqa yo'q)");
+  }
+  return tgChannels
+    .filter(({ identifier }) => map?.[user.tgId]?.[identifier] === false)
+    .map(({ channel }) => ({ title: channel.title, url: channel.url }));
+};
+
+// DMs each unsubscribed member; if a DM fails (bot blocked), flags the tournament on the user
+// so the reminder is resent on their next /start. A delivered DM clears any stale flag.
+const notifyAndTrack = async (members, tournament) => {
+  for (const m of members) {
+    const { text, buttons } = buildSponsorReminderMessage(tournament, m.missing);
+    const delivered = await notify.notifyUser({ tgId: m.tgId, text, buttons });
+    const op = delivered
+      ? { $pull: { pendingSponsorTournaments: tournament._id } }
+      : { $addToSet: { pendingSponsorTournaments: tournament._id } };
+    await User.updateOne({ _id: m.userId }, op).catch(() => {});
+  }
+};
+
+// Per-member sponsor-channel check. Returns { ok, channels (union), members:[{userId,tgId,name,missing}] }
+// and DMs each unsubscribed member (except the leader, who sees the list in the bot).
+// Used both at registration time and for the early team-level check on the register button.
+export const evaluateSponsorMembership = async ({ tournament, users, leaderId }) => {
+  const tgChannels = telegramSponsorChannels(tournament);
   const tgIds = users.map((u) => u.tgId).filter(Boolean);
   if (!tgChannels.length || !tgIds.length) return { ok: true, channels: [], members: [] };
 
@@ -128,14 +158,53 @@ export const evaluateSponsorMembership = async ({ tournament, users, leaderId })
       .filter(({ identifier }) => map?.[u.tgId]?.[identifier] === false)
       .map(({ channel }) => ({ title: channel.title, url: channel.url }));
     if (missing.length) {
-      members.push({ tgId: u.tgId, name: memberName(u), missing });
+      members.push({ userId: u._id, tgId: u.tgId, name: memberName(u), missing });
       for (const c of missing) channelByUrl.set(c.url, c);
     }
   }
   // The leader already sees the names list in the bot, so don't also DM the leader.
   const toNotify = members.filter((m) => String(m.tgId) !== String(leaderTgId));
-  if (toNotify.length) notifyMissingMembers(toNotify);
+  if (toNotify.length) await notifyAndTrack(toNotify, tournament);
   return { ok: members.length === 0, channels: [...channelByUrl.values()], members };
+};
+
+// /start: resends any sponsor reminders that previously failed to deliver to this user.
+// Clears the flag once the reminder is delivered, the user is already subscribed, or the
+// tournament is no longer active. Bot still unreachable -> kept for the next attempt.
+export const resendPendingSponsorReminders = async (tgId) => {
+  const u = await User.findOne(
+    { tgId: Number(tgId) },
+    "tgId firstName lastName tgUsername pendingSponsorTournaments",
+  );
+  if (!u?.pendingSponsorTournaments?.length) return { sent: 0 };
+
+  const clear = (tid) =>
+    User.updateOne({ _id: u._id }, { $pull: { pendingSponsorTournaments: tid } }).catch(() => {});
+
+  let sent = 0;
+  for (const tid of [...u.pendingSponsorTournaments]) {
+    const t = await Tournament.findById(tid, "title status sponsorChannels");
+    if (!t || ![TOURNAMENT_STATUS.PENDING, TOURNAMENT_STATUS.ONGOING].includes(t.status)) {
+      await clear(tid);
+      continue;
+    }
+    let channels;
+    try {
+      channels = await getMissingChannelsForUser(t, u);
+    } catch (err) {
+      continue; // bot unreachable - retry on the next /start
+    }
+    if (!channels.length) {
+      await clear(tid); // already subscribed
+      continue;
+    }
+    const { text, buttons } = buildSponsorReminderMessage(t, channels);
+    if (await notify.notifyUser({ tgId: u.tgId, text, buttons })) {
+      sent += 1;
+      await clear(tid);
+    }
+  }
+  return { sent };
 };
 
 // Secret group: per-group, mandatory. The leader must be a member of THIS group's private
