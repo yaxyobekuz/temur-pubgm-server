@@ -249,3 +249,16 @@ export const myRegistrations = async (tgId) => {
   if (!team) return [];
   return registrationsService.listByTeam(team._id);
 };
+
+// /start: resend any sponsor-subscription reminders that failed to reach this user earlier.
+export const resendSponsorReminders = async (tgId) => {
+  return registrationsService.resendPendingSponsorReminders(tgId);
+};
+
+// "Mening turnirlarim": this user's own missing sponsor channels for a tournament (no side-effects).
+export const getSelfSponsorChannels = async (tgId, tournamentId) => {
+  const user = await findByTgId(tgId);
+  const tournament = await tournamentsService.getById(tournamentId);
+  const channels = await registrationsService.getMissingChannelsForUser(tournament, user);
+  return { ok: channels.length === 0, channels, tournamentTitle: tournament.title };
+};

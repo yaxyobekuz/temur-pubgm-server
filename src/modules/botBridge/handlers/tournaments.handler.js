@@ -46,6 +46,16 @@ export const sponsorCheck = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+export const selfSponsor = asyncHandler(async (req, res) => {
+  const data = await botBridge.getSelfSponsorChannels(req.query.tgId, req.params.id);
+  res.json({ success: true, data });
+});
+
+export const resendSponsorReminders = asyncHandler(async (req, res) => {
+  const data = await botBridge.resendSponsorReminders(req.body.tgId);
+  res.json({ success: true, data });
+});
+
 export const pendingPlacement = asyncHandler(async (req, res) => {
   const data = await botBridge.getPendingPlacement(req.query.tgId);
   res.json({ success: true, data });

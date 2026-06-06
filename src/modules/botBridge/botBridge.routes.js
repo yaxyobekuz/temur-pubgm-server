@@ -43,6 +43,8 @@ import {
   myRegistrations,
   openSlots,
   sponsorCheck,
+  selfSponsor,
+  resendSponsorReminders,
   pendingPlacement,
   placeIntoStage,
 } from "./handlers/tournaments.handler.js";
@@ -61,6 +63,11 @@ router.patch(
   validate(updateContactUsernameSchema),
   updateContactUsername,
 );
+router.post(
+  "/users/sponsor-reminders/resend",
+  validate(tgOnlySchema),
+  resendSponsorReminders,
+);
 
 router.get("/teams", validate(getTeamSchema), getTeam);
 router.post("/teams", validate(createTeamSchema), createTeam);
@@ -73,6 +80,7 @@ router.post("/teams/accept-invite", validate(acceptInviteSchema), acceptInvite);
 router.get("/tournaments", listTournaments);
 router.get("/tournaments/:id/open-slots", validate(openSlotsSchema), openSlots);
 router.get("/tournaments/:id/sponsor-check", validate(sponsorCheckSchema), sponsorCheck);
+router.get("/tournaments/:id/sponsor-self", validate(sponsorCheckSchema), selfSponsor);
 router.get("/tournaments/:id", validate(tournamentIdSchema), getTournament);
 router.patch(
   "/tournaments/:id/banner-file-id",
