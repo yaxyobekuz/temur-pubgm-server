@@ -3,6 +3,7 @@ import Stage from "../../../models/stage.model.js";
 import Group from "../../../models/group.model.js";
 import HelpLink from "../../../models/helpLink.model.js";
 import Team from "../../../models/team.model.js";
+import * as settingsService from "../../settings/services/settings.service.js";
 import TournamentRegistration, {
   REGISTRATION_STATUS,
 } from "../../../models/tournamentRegistration.model.js";
@@ -111,7 +112,6 @@ export const create = async (body) => {
     mode: body.mode,
     startDate: body.startDate ? new Date(body.startDate) : null,
     sponsorChannels: [],
-    adminContactUrl: body.adminContactUrl?.trim() || "",
     maps: Array.isArray(body.maps) ? body.maps.filter(Boolean) : [],
     maxTeams: body.maxTeams ?? 60,
     stagesCount,
@@ -152,7 +152,6 @@ export const update = async (id, body) => {
     t.maps = Array.isArray(body.maps) ? body.maps.filter(Boolean) : [];
   }
   if (body.maxTeams !== undefined) t.maxTeams = body.maxTeams;
-  if (body.adminContactUrl !== undefined) t.adminContactUrl = body.adminContactUrl.trim();
 
   await t.save();
   return withStages(t);
@@ -202,10 +201,12 @@ const enqueueStatusBroadcast = async (tournament, next, currentUser) => {
   }
 };
 
-// Resolves the admin contact link for VIP requests: tournament field first, then the first
-// active help link as a fallback.
-const resolveAdminContactUrl = async (tournament) => {
-  if (tournament.adminContactUrl) return tournament.adminContactUrl;
+// Resolves the admin contact link for VIP requests from the global panel settings (single source
+// of truth - the VIP admin username on the Settings page), falling back to the first active help
+// link when it is unset.
+const resolveAdminContactUrl = async () => {
+  const vipUrl = await settingsService.getVipAdminUrl();
+  if (vipUrl) return vipUrl;
   const link = await HelpLink.findOne({ isActive: true }).sort({ order: 1 });
   return link?.url || "";
 };
@@ -223,7 +224,7 @@ const enqueuePromoteBroadcast = async (tournament, nextOrder, currentUser) => {
       "O'tgan komandalar bot orqali kun va vaqtni tanlab joylashlari kerak.",
       "O'ta olmagan komandalar VIP slot olish uchun admin bilan bog'lanishlari mumkin.",
     ].join("\n");
-    const url = await resolveAdminContactUrl(tournament);
+    const url = await resolveAdminContactUrl();
     const buttons = url ? [{ text: "Admin bilan bog'lanish", url }] : [];
     await create(
       {

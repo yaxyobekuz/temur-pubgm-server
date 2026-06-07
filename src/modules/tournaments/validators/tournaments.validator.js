@@ -29,7 +29,6 @@ export const createSchema = z.object({
     startDate: z.union([z.coerce.date(), z.string().min(1)]).optional(),
     maps: z.array(z.string().min(1).max(60)).optional(),
     maxTeams: z.number().int().min(1).max(1000).optional(),
-    adminContactUrl: z.string().max(500).optional(),
   }),
 });
 
@@ -45,7 +44,6 @@ export const updateSchema = z.object({
       startDate: z.union([z.coerce.date(), z.null()]).optional(),
       maps: z.array(z.string().min(1).max(60)).optional(),
       maxTeams: z.number().int().min(1).max(1000).optional(),
-      adminContactUrl: z.string().max(500).optional(),
     })
     .refine((b) => Object.keys(b).length > 0, {
       message: "Hech bo'lmaganda bitta maydon kerak",

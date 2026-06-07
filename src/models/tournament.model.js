@@ -41,8 +41,6 @@ const tournamentSchema = new mongoose.Schema(
     // Which stage (bosqich) the tournament is currently in; decoupled from status.
     currentStage: { type: Number, min: 1, default: 1 },
     sponsorChannels: [sponsorChannelSchema],
-    // Admin contact link shown to teams in stage-advance notifications (for VIP slot requests).
-    adminContactUrl: { type: String, trim: true, default: "" },
     maps: [{ type: String, trim: true }],
     maxTeams: { type: Number, min: 1, default: 60 },
     stagesCount: {
