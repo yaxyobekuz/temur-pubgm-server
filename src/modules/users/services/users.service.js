@@ -100,8 +100,10 @@ export const softRemove = async (id) => {
 };
 
 // Toggle between `leader` and `player`. Both roles must exist in the Role collection.
-// - leader → player: keep the owned Team (leader unchanged); just flip the user's role.
-// - player → leader: detach from any team where they are a non-leader member.
+// - leader → player: keep the owned Team (document + leadership), but "park" it by dropping the
+//   user's own membership so they're free to join another team and play.
+// - player → leader: detach from any team where they are a non-leader member, then rejoin the
+//   team they lead so the leader is always a member of their own team.
 export const switchSelfRole = async (user, newRole) => {
   if (!SELF_SWITCHABLE_ROLES.includes(newRole)) {
     throw new ApiError(400, "Bunday rolga o'tib bo'lmaydi");
@@ -122,8 +124,10 @@ export const switchSelfRole = async (user, newRole) => {
         "Faol turnirda qatnashayotgan o'yinchi rolini almashtirib bo'lmaydi",
       );
     }
-    // Detach from every team where this user is a non-leader member.
+    // Detach from every team where this user is a non-leader member, then make sure they're
+    // back in the team they lead (reverses the "park" done when they became a player).
     await teamsService.detachFromAllTeams(user._id);
+    await teamsService.rejoinOwnTeam(user._id);
   }
 
   if (user.role === ROLES.LEADER && newRole === ROLES.PLAYER) {
@@ -138,6 +142,9 @@ export const switchSelfRole = async (user, newRole) => {
         );
       }
     }
+    // Park the owned team: keep it (and the leadership ref), but drop this user's membership so
+    // they can join another team to play. rejoinOwnTeam restores it on switching back to leader.
+    await teamsService.parkOwnTeam(user._id);
   }
 
   user.role = newRole;

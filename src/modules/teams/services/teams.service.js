@@ -199,11 +199,17 @@ export const acceptInvite = async (user, inviteCode) => {
   if (team.members.some((m) => String(m) === String(user._id))) {
     throw new ApiError(409, "Siz allaqachon ushbu komandadasiz");
   }
-  const inAnother = await Team.findOne({ members: user._id });
+  // A player may still lead their own (parked) team - that membership must NOT block joining
+  // another team to play, so only a *non-owned* team counts as "boshqa komanda".
+  const inAnother = await Team.findOne({ members: user._id, leader: { $ne: user._id } });
   if (inAnother) throw new ApiError(409, "Siz boshqa komandadasiz");
   if (team.members.length >= TEAM_MEMBERS_MAX) {
     throw new ApiError(409, "Komanda to'la");
   }
+
+  // Ensure the player is an active member of exactly one team: drop their own parked team's
+  // membership (no-op if already parked at role switch; also self-heals pre-existing data).
+  await parkOwnTeam(user._id);
 
   team.members.push(user._id);
   await team.save();
@@ -229,6 +235,27 @@ export const detachFromAllTeams = async (userId, { session } = {}) => {
   await Team.updateMany(
     { members: userId, leader: { $ne: userId } },
     { $pull: { members: userId } },
+    session ? { session } : undefined,
+  );
+};
+
+// "Park" the user's own team: drop their membership while keeping the team document and the
+// `leader` reference intact. Used when a leader downgrades to `player` so they're free to join
+// another team and play; rejoinOwnTeam restores them when they switch back to leader.
+export const parkOwnTeam = async (userId, { session } = {}) => {
+  await Team.updateMany(
+    { leader: userId },
+    { $pull: { members: userId } },
+    session ? { session } : undefined,
+  );
+};
+
+// Re-add the user to the team they lead (reverse of parkOwnTeam). Used on `player` → `leader`.
+// $addToSet keeps it idempotent if they somehow still appear in the member list.
+export const rejoinOwnTeam = async (userId, { session } = {}) => {
+  await Team.updateMany(
+    { leader: userId },
+    { $addToSet: { members: userId } },
     session ? { session } : undefined,
   );
 };
