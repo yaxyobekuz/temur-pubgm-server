@@ -5,6 +5,8 @@ import TournamentRegistration, {
 } from "../../../models/tournamentRegistration.model.js";
 import ApiError from "../../../utils/ApiError.js";
 import { TEAM_PLACEMENT_KIND, stageCapacity } from "../../../constants/tournament.js";
+import { ensureSecretGroupMembership } from "../../../services/secretGroup.service.js";
+import * as notify from "../../../services/notify.service.js";
 
 // Joins the stage schedule (date + time) onto a group by its day/timeSlot.
 const attachSchedule = (group, stage) => {
@@ -60,6 +62,9 @@ export const removeTeam = async (id, registrationId) => {
 };
 
 // Place a registration into a group, tagged by `kind` (normal/advanced/vip).
+// Strict secret-group gate: the leader must be a member of THIS group's private group before the
+// team is placed. If not, the team is NOT placed and the leader is DM'd the join link instead -
+// keeping the "leader maxfiy guruhga a'zo bo'lmaguncha qatnasha olmaydi" rule on every path.
 export const addTeam = async (id, registrationId, kind = TEAM_PLACEMENT_KIND.NORMAL) => {
   const g = await getById(id);
   if (g.teams.some((t) => String(t.registration) === String(registrationId))) {
@@ -68,11 +73,31 @@ export const addTeam = async (id, registrationId, kind = TEAM_PLACEMENT_KIND.NOR
   if (g.teams.length >= g.maxTeams) {
     throw new ApiError(409, "Guruh to'lgan");
   }
-  const reg = await TournamentRegistration.findById(registrationId);
+  const reg = await TournamentRegistration.findById(registrationId).populate({
+    path: "team",
+    select: "leader",
+    populate: { path: "leader", select: "tgId" },
+  });
   if (!reg) throw new ApiError(404, "Komanda topilmadi");
   if (reg.status !== REGISTRATION_STATUS.REGISTERED) {
     throw new ApiError(400, "Bu komanda turnirda faol emas");
   }
+
+  const leaderTgId = reg.team?.leader?.tgId;
+  const sg = await ensureSecretGroupMembership({ group: g, leaderTgId });
+  if (!sg.ok) {
+    // Leader is not in the secret group: send them the join link via the bot, then refuse the
+    // placement so the owner sees they must join first (the team stays "partially" registered).
+    await notify.notifyUser({
+      tgId: leaderTgId,
+      text: `❗ Sizning komandangiz turnir guruhiga qo'shilmoqda. Avval <b>${sg.group.title || "maxfiy guruh"}</b>ga qo'shiling - aks holda turnirda qatnasha olmaysiz.`,
+      buttons: [{ text: sg.group.title || "Maxfiy guruh", url: sg.group.url }],
+    });
+    throw new ApiError(403, "Leader maxfiy guruhga a'zo emas - havola yuborildi", {
+      details: { secretGroup: sg.group },
+    });
+  }
+
   g.teams.push({ registration: registrationId, kind });
   await g.save();
   return g;
