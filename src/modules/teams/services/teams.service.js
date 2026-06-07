@@ -214,7 +214,8 @@ export const acceptInvite = async (user, inviteCode) => {
   team.members.push(user._id);
   await team.save();
 
-  // Leaderga (yangi a'zo qo'shildi) + qo'shilgan a'zoga (xush kelibsiz) xabar.
+  // Leaderga xabar (yangi a'zo qo'shildi). Qo'shilgan a'zoga tasdiq botning o'zi (start deep-link)
+  // darhol javob qaytaradi, shuning uchun bu yerda unga alohida xabar yuborilmaydi (takror bo'lmasin).
   const leader = await notify.resolveRecipient(team.leader);
   if (leader) {
     await notify.notifyUser({
@@ -222,10 +223,6 @@ export const acceptInvite = async (user, inviteCode) => {
       text: `✅ <b>${notify.displayName(user)}</b> komandangizga qo'shildi.`,
     });
   }
-  await notify.notifyUser({
-    tgId: user.tgId,
-    text: `✅ Siz <b>${team.name}</b> komandasiga qo'shildingiz.`,
-  });
   return team;
 };
 
