@@ -38,6 +38,17 @@ export const MODE_ROSTER_SIZE = Object.freeze({
   [TOURNAMENT_MODE.SQUAD]: 4,
 });
 
+// Default PUBG Mobile map pool seeded into global settings on first creation.
+// The owner edits this list on the Settings page; each tournament picks one map from it.
+export const DEFAULT_MAPS = Object.freeze([
+  "Erangel",
+  "Miramar",
+  "Sanhok",
+  "Vikendi",
+  "Livik",
+  "Karakin",
+]);
+
 export const DEFAULT_STAGES_COUNT = 3;
 export const DEFAULT_GROUP_SIZE = 20;
 export const MAX_STAGES_COUNT = 9;

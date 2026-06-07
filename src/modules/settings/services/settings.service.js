@@ -23,6 +23,19 @@ export const update = async (body) => {
       doc.vipAdminUsername = "";
     }
   }
+  if (body.maps !== undefined) {
+    // Trim, drop empties, and de-duplicate case-insensitively (keeping first spelling).
+    const seen = new Set();
+    doc.maps = body.maps
+      .map((m) => m.trim())
+      .filter((m) => {
+        if (!m) return false;
+        const key = m.toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  }
   await doc.save();
   return doc;
 };
