@@ -417,7 +417,7 @@ export const openVipSlot = async (id, { teamId, stageOrder }, currentUser) => {
   const stageLabel = getStageLabel(resolvedStage, t.stagesCount);
   await notifyTeamMembers(
     teamId,
-    `🎟 Sizga <b>${stageLabel}</b> uchun VIP slot berildi! Bot orqali asosiy o'yinchilarni va kun/vaqtni tanlang.`,
+    `🎟 Sizga <b>${stageLabel}</b> uchun VIP slot berildi! Bot orqali asosiy o'yinchilar va kun/vaqtni tanlang.\n\n⚠️ Joy tanlaganingizda o'sha guruhning <b>maxfiy guruhiga</b> qo'shilishingiz shart - aks holda turnirda qatnasha olmaysiz.`,
   );
 
   return withStages(t);
