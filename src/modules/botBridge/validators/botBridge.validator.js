@@ -143,6 +143,11 @@ export const pendingPlacementSchema = z.object({
   query: z.object({ tgId: tgIdSchema }),
 });
 
+// chatId is a Telegram chat id (e.g. -1001234567890) sent as a query string.
+export const secretGroupTeamsSchema = z.object({
+  query: z.object({ chatId: z.coerce.string().min(1) }),
+});
+
 export const placeSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({

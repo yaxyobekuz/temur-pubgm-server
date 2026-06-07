@@ -100,6 +100,44 @@ export const clearSecretGroup = async (groupId) => {
   return g;
 };
 
+// Lobby slots 1-2 are reserved for the host/observers, so placed teams start at slot 3.
+const RESERVED_LOBBY_SLOTS = 2;
+
+// Looks up the group whose secret group has this Telegram chatId and returns its placed teams
+// as a slot-numbered list `{ slot, name, username, kind }` (placement order). The leader's
+// manual contact handle wins, falling back to the auto-captured Telegram username.
+// Returns null when no group is wired to this chat (the bot turns that into a friendly reply).
+export const listTeamsBySecretChatId = async (chatId) => {
+  const group = await Group.findOne({ "secretGroup.chatId": String(chatId) }).lean();
+  if (!group) return null;
+
+  const regIds = (group.teams || []).map((t) => t.registration);
+  const regs = regIds.length
+    ? await TournamentRegistration.find({ _id: { $in: regIds } })
+        .populate({
+          path: "team",
+          select: "name tag leader",
+          populate: { path: "leader", select: "tgUsername contactUsername" },
+        })
+        .lean()
+    : [];
+  const byId = new Map(regs.map((r) => [String(r._id), r]));
+
+  const teams = (group.teams || []).map((t, i) => {
+    const team = byId.get(String(t.registration))?.team;
+    const leader = team?.leader;
+    return {
+      slot: RESERVED_LOBBY_SLOTS + i + 1,
+      name: team?.name || "—",
+      tag: team?.tag || "",
+      username: leader?.contactUsername || leader?.tgUsername || "",
+      kind: t.kind,
+    };
+  });
+
+  return { code: group.code, title: group.secretGroup?.title || "", teams };
+};
+
 // Stage groups + how many more teams can still be placed (= VIP capacity remaining).
 export const getStageGroupsWithCapacity = async (stageId) => {
   const stage = await Stage.findById(stageId);

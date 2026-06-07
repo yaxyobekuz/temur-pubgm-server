@@ -20,6 +20,7 @@ import {
   sponsorCheckSchema,
   pendingPlacementSchema,
   placeSchema,
+  secretGroupTeamsSchema,
 } from "./validators/botBridge.validator.js";
 import registerOrLogin from "./handlers/registerOrLogin.handler.js";
 import getMe from "./handlers/getMe.handler.js";
@@ -50,6 +51,7 @@ import {
 } from "./handlers/tournaments.handler.js";
 import { listHelpLinks } from "./handlers/helpLinks.handler.js";
 import { getSettings } from "./handlers/settings.handler.js";
+import { secretGroupTeams } from "./handlers/groups.handler.js";
 
 // All routes here are mounted under `/api/bot/*` and protected by the botAuth middleware.
 const router = Router();
@@ -95,6 +97,8 @@ router.post(
 router.get("/registrations/pending-placement", validate(pendingPlacementSchema), pendingPlacement);
 router.get("/registrations", validate(myRegistrationsSchema), myRegistrations);
 router.post("/registrations/:id/place", validate(placeSchema), placeIntoStage);
+
+router.get("/groups/teams-by-chat", validate(secretGroupTeamsSchema), secretGroupTeams);
 
 router.get("/help-links", listHelpLinks);
 router.get("/settings", getSettings);

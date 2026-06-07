@@ -12,6 +12,7 @@ import * as teamsService from "../../teams/services/teams.service.js";
 import * as tournamentsService from "../../tournaments/services/tournaments.service.js";
 import * as registrationsService from "../../registrations/services/registrations.service.js";
 import * as stagesService from "../../stages/services/stages.service.js";
+import * as groupsService from "../../groups/services/groups.service.js";
 import * as helpLinksService from "../../helpLinks/services/helpLinks.service.js";
 import * as settingsService from "../../settings/services/settings.service.js";
 import { saveImageFromUrl } from "../../../utils/uploadFile.js";
@@ -198,6 +199,17 @@ export const placeIntoStage = async (tgId, registrationId, day, timeSlot, roster
 
 export const listHelpLinks = async () => {
   return helpLinksService.listActive();
+};
+
+// --- Secret group (bot-only) -----------------------------------------------
+
+// `/teams` inside a secret group: lists the teams placed into the group wired to this chat.
+export const getSecretGroupTeams = async (chatId) => {
+  const result = await groupsService.listTeamsBySecretChatId(chatId);
+  if (!result) {
+    throw new ApiError(404, "Bu guruh hech qaysi turnir guruhiga maxfiy guruh sifatida ulanmagan");
+  }
+  return result;
 };
 
 // --- Settings (bot-only) ---------------------------------------------------
