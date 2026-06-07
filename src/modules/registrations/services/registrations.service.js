@@ -290,7 +290,7 @@ export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot
   const leaderTgId = users.find((u) => String(u._id) === String(leaderUser._id))?.tgId;
   const sg = await ensureSecretGroupMembership({ group: openGroup, leaderTgId });
   if (!sg.ok) {
-    throw new ApiError(403, "Maxfiy guruhga qo'shiling", { secretGroup: sg.group });
+    throw new ApiError(403, "Maxfiy guruhga qo'shiling", { details: { secretGroup: sg.group } });
   }
 
   // Capacity check: tournament-level (Phase 2 maxTeams).
@@ -524,7 +524,7 @@ export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot
     leaderUser.tgId || (await User.findById(leaderUser._id, "tgId"))?.tgId;
   const sg = await ensureSecretGroupMembership({ group: openGroup, leaderTgId });
   if (!sg.ok) {
-    throw new ApiError(403, "Maxfiy guruhga qo'shiling", { secretGroup: sg.group });
+    throw new ApiError(403, "Maxfiy guruhga qo'shiling", { details: { secretGroup: sg.group } });
   }
 
   const kind =
