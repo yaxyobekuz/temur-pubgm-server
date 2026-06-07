@@ -14,6 +14,7 @@ import {
 } from "../../../constants/tournament.js";
 import * as botClient from "../../../services/botClient.service.js";
 import * as notify from "../../../services/notify.service.js";
+import { ensureSecretGroupMembership } from "../../../services/secretGroup.service.js";
 import { getTelegramChannelIdentifier } from "../../../utils/telegram.js";
 import { formatDateUz } from "../../../utils/dateUz.js";
 import * as stagesService from "../../stages/services/stages.service.js";
@@ -205,29 +206,6 @@ export const resendPendingSponsorReminders = async (tgId) => {
     }
   }
   return { sent };
-};
-
-// Secret group: per-group, mandatory. The leader must be a member of THIS group's private
-// group before being placed into it. A group without a configured secret group blocks placement.
-const ensureSecretGroupMembership = async ({ group, leaderTgId }) => {
-  const sg = group?.secretGroup;
-  if (!sg || !sg.url || !sg.chatId) {
-    throw new ApiError(400, "Bu guruh uchun maxfiy guruh sozlanmagan. Admin bilan bog'laning.");
-  }
-  if (!leaderTgId) return { ok: false, group: { title: sg.title, url: sg.url } };
-
-  try {
-    const map = await botClient.checkMembership({
-      tgIds: [leaderTgId],
-      chatIds: [sg.chatId],
-    });
-    const isMember = map?.[leaderTgId]?.[sg.chatId] === true;
-    return isMember
-      ? { ok: true }
-      : { ok: false, group: { title: sg.title, url: sg.url } };
-  } catch (err) {
-    throw new ApiError(503, "Maxfiy guruhni tekshirib bo'lmadi (bot bilan aloqa yo'q)");
-  }
 };
 
 export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot }) => {
