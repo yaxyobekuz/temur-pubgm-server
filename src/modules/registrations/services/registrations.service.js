@@ -340,7 +340,7 @@ export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot
   });
 
   return reg.populate([
-    { path: "team", select: "name logo" },
+    { path: "team", select: "name tag logo" },
     { path: "roster.user", select: "firstName lastName tgUsername gameNickname" },
     { path: "currentGroup", select: "code day timeSlot" },
   ]);
@@ -351,7 +351,7 @@ export const listByTournament = async ({ tournamentId, status }) => {
   if (status) filter.status = status;
   return TournamentRegistration.find(filter)
     .sort({ registeredAt: 1 })
-    .populate("team", "name logo leader")
+    .populate("team", "name tag logo leader")
     .populate("roster.user", "firstName lastName tgUsername gameNickname")
     .populate("currentGroup", "code day timeSlot stage");
 };
@@ -386,7 +386,7 @@ export const listByTeam = async (teamId) => {
 export const getById = async (id) => {
   const r = await TournamentRegistration.findById(id)
     .populate("tournament", "title status")
-    .populate("team", "name logo leader")
+    .populate("team", "name tag logo leader")
     .populate("roster.user", "firstName lastName tgUsername gameNickname");
   if (!r) throw new ApiError(404, "Ro'yxat topilmadi");
   return r;

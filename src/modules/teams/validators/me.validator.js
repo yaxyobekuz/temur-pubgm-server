@@ -3,6 +3,7 @@ import { z } from "zod";
 export const meCreateSchema = z.object({
   body: z.object({
     name: z.string().min(2).max(60),
+    tag: z.string().max(10).optional(),
     logo: z.string().max(500).optional(),
   }),
 });
@@ -11,6 +12,7 @@ export const meUpdateSchema = z.object({
   body: z
     .object({
       name: z.string().min(2).max(60).optional(),
+      tag: z.string().max(10).optional(),
       logo: z.string().max(500).optional(),
     })
     .refine((b) => Object.keys(b).length > 0, {

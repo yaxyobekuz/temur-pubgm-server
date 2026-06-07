@@ -50,6 +50,7 @@ export const createTeamSchema = z.object({
   body: z.object({
     tgId: tgIdSchema,
     name: z.string().min(2).max(60),
+    tag: z.string().max(10).optional(),
     logo: z.string().max(500).optional(),
   }),
 });
@@ -59,6 +60,7 @@ export const updateTeamSchema = z.object({
     .object({
       tgId: tgIdSchema,
       name: z.string().min(2).max(60).optional(),
+      tag: z.string().max(10).optional(),
       logo: z.string().max(500).optional(),
       // Remote Telegram file URL - server downloads and stores it.
       logoUrl: z.string().url().max(1000).optional(),
@@ -66,7 +68,11 @@ export const updateTeamSchema = z.object({
       logoFileId: z.string().max(200).optional(),
     })
     .refine(
-      (b) => b.name !== undefined || b.logo !== undefined || b.logoUrl !== undefined,
+      (b) =>
+        b.name !== undefined ||
+        b.tag !== undefined ||
+        b.logo !== undefined ||
+        b.logoUrl !== undefined,
       { message: "Hech bo'lmaganda bitta maydon kerak" },
     ),
 });

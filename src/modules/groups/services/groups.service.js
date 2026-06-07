@@ -23,7 +23,7 @@ export const listByStage = async (stageId) => {
   const allRegIds = groups.flatMap((g) => (g.teams || []).map((t) => t.registration));
   const regs = allRegIds.length
     ? await TournamentRegistration.find({ _id: { $in: allRegIds } })
-        .populate("team", "name leader")
+        .populate("team", "name tag leader")
         .lean()
     : [];
   const byId = new Map(regs.map((r) => [String(r._id), r]));

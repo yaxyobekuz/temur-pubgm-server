@@ -81,6 +81,7 @@ const swapLogo = async (team, nextLogo, nextFileId = "") => {
 export const adminUpdate = async (id, body) => {
   const team = await getById(id);
   if (body.name !== undefined) team.name = body.name.trim();
+  if (body.tag !== undefined) team.tag = body.tag.trim();
   if (body.logo !== undefined) await swapLogo(team, body.logo, body.logoFileId);
   if (body.isActive !== undefined) team.isActive = !!body.isActive;
   await team.save();
@@ -108,6 +109,7 @@ export const createForLeader = async (leaderUser, body) => {
 
   const team = await Team.create({
     name: body.name.trim(),
+    tag: body.tag?.trim() || "",
     logo: body.logo?.trim() || "",
     leader: leaderUser._id,
     members: [leaderUser._id],
@@ -121,6 +123,7 @@ export const updateOwn = async (leaderUser, body) => {
   const team = await Team.findOne({ leader: leaderUser._id });
   if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
   if (body.name !== undefined) team.name = body.name.trim();
+  if (body.tag !== undefined) team.tag = body.tag.trim();
   if (body.logo !== undefined) await swapLogo(team, body.logo, body.logoFileId);
   await team.save();
   return team;
