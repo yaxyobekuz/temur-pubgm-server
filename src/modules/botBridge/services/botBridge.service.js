@@ -273,5 +273,10 @@ export const getSelfSponsorChannels = async (tgId, tournamentId) => {
   const user = await findByTgId(tgId);
   const tournament = await tournamentsService.getById(tournamentId);
   const channels = await registrationsService.getMissingChannelsForUser(tournament, user);
-  return { ok: channels.length === 0, channels, tournamentTitle: tournament.title };
+  // ok is gated on Telegram only; when there's something to fix, also surface the
+  // unverifiable social channels (YouTube/Instagram) so the user can subscribe to them too.
+  const display = channels.length
+    ? [...channels, ...registrationsService.socialSponsorChannels(tournament)]
+    : channels;
+  return { ok: channels.length === 0, channels: display, tournamentTitle: tournament.title };
 };

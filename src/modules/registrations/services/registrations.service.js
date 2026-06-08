@@ -98,6 +98,14 @@ const telegramSponsorChannels = (tournament) =>
     .map((c) => ({ channel: c, identifier: getTelegramChannelIdentifier(c) }))
     .filter((x) => x.identifier);
 
+// External social channels (YouTube/Instagram/...). Membership can't be verified via the bot,
+// so these are NEVER part of the subscription gate - they're only appended to the reminder
+// keyboards/buttons for display, alongside the Telegram channels that ARE checked.
+export const socialSponsorChannels = (tournament) =>
+  (tournament.sponsorChannels || [])
+    .filter((c) => c.type === "social")
+    .map((c) => ({ title: c.title, url: c.url }));
+
 // Channels a single user is personally not subscribed to (TG only). Read-only: no DM,
 // no pending bookkeeping. Throws 503 if the bot is unreachable (the check can't be trusted).
 export const getMissingChannelsForUser = async (tournament, user) => {
@@ -152,13 +160,17 @@ export const evaluateSponsorMembership = async ({ tournament, users, leaderId })
   const leaderTgId = users.find((u) => String(u._id) === String(leaderId))?.tgId;
 
   // Per-member missing channels + the union of channels (for the leader's keyboard).
+  // Membership is gated on Telegram only; unverifiable social channels are appended for
+  // display so a member who must (re)subscribe also sees the YouTube/Instagram links.
+  const social = socialSponsorChannels(tournament);
   const members = [];
   const channelByUrl = new Map();
   for (const u of users) {
-    const missing = tgChannels
+    const missingTg = tgChannels
       .filter(({ identifier }) => map?.[u.tgId]?.[identifier] === false)
       .map(({ channel }) => ({ title: channel.title, url: channel.url }));
-    if (missing.length) {
+    if (missingTg.length) {
+      const missing = [...missingTg, ...social];
       members.push({ userId: u._id, tgId: u.tgId, name: memberName(u), missing });
       for (const c of missing) channelByUrl.set(c.url, c);
     }
@@ -196,10 +208,12 @@ export const resendPendingSponsorReminders = async (tgId) => {
       continue; // bot unreachable - retry on the next /start
     }
     if (!channels.length) {
-      await clear(tid); // already subscribed
+      await clear(tid); // already subscribed (Telegram); social channels never block
       continue;
     }
-    const { text, buttons } = buildSponsorReminderMessage(t, channels);
+    // Show the unverifiable social channels next to the Telegram ones in the reminder.
+    const display = [...channels, ...socialSponsorChannels(t)];
+    const { text, buttons } = buildSponsorReminderMessage(t, display);
     if (await notify.notifyUser({ tgId: u.tgId, text, buttons })) {
       sent += 1;
       await clear(tid);
