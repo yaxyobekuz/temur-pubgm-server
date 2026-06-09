@@ -181,6 +181,36 @@ export const evaluateSponsorMembership = async ({ tournament, users, leaderId })
   return { ok: members.length === 0, channels: [...channelByUrl.values()], members };
 };
 
+// Read-only sibling of evaluateSponsorMembership for the periodic re-check job: returns the
+// roster members who LEFT their Telegram sponsor channels, WITHOUT any side effects (no DMs,
+// no pendingSponsorTournaments bookkeeping) - the job owns the messaging itself.
+// Returns: [{ userId, tgId, name, missing:[{title,url}] }] (only members with missing channels).
+// Throws 503 if the bot is unreachable (the check can't be trusted).
+export const evaluateRosterSponsorMembership = async (tournament, users) => {
+  const tgChannels = telegramSponsorChannels(tournament);
+  const tgIds = users.map((u) => u.tgId).filter(Boolean);
+  if (!tgChannels.length || !tgIds.length) return [];
+
+  let map;
+  try {
+    map = await botClient.checkMembership({
+      tgIds,
+      chatIds: tgChannels.map((x) => x.identifier),
+    });
+  } catch (err) {
+    throw new ApiError(503, "Obunani tekshirib bo'lmadi (bot bilan aloqa yo'q)");
+  }
+
+  const result = [];
+  for (const u of users) {
+    const missing = tgChannels
+      .filter(({ identifier }) => map?.[u.tgId]?.[identifier] === false)
+      .map(({ channel }) => ({ title: channel.title, url: channel.url }));
+    if (missing.length) result.push({ userId: u._id, tgId: u.tgId, name: memberName(u), missing });
+  }
+  return result;
+};
+
 // /start: resends any sponsor reminders that previously failed to deliver to this user.
 // Clears the flag once the reminder is delivered, the user is already subscribed, or the
 // tournament is no longer active. Bot still unreachable -> kept for the next attempt.
