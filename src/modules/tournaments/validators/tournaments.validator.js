@@ -118,6 +118,17 @@ export const addSponsorSchema = z.object({
     })
     .superRefine((data, ctx) => {
       if (data.type !== "telegram") return;
+      // A "telegram" channel must be a t.me link, otherwise it can't be membership-checked
+      // and would silently vanish from the bot. Non-t.me links belong to type "social".
+      if (!/^https?:\/\/t\.me\//i.test(data.url.trim())) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["url"],
+          message:
+            "Telegram kanal havolasi t.me bo'lishi kerak. YouTube/Instagram uchun turini \"social\" tanlang",
+        });
+        return;
+      }
       if (isPrivateTelegramUrl(data.url) && !data.chatId?.trim()) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
