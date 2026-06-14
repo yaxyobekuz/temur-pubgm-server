@@ -98,3 +98,14 @@ export const PLACE_LABEL = (place) => `${place}-o'rin`;
 // Stage label by order number and total count (last order = "Final").
 export const getStageLabel = (order, total) =>
   order === total ? "Final" : `${order}-bosqich`;
+
+// VIP-slot DM sent to the team when an admin grants it. Explains the next step clearly: the
+// placement picker opens automatically, with the "🎟 Bosqich slotini tanlash" button as a fallback.
+// Reused by the grant flow and the /start resend (when the first DM didn't reach the leader).
+export const buildVipPlacementNotice = (stageLabel) =>
+  `🎟 Sizga <b>${stageLabel}</b> uchun VIP slot berildi!\n\n` +
+  `Turnirda o'ynash uchun <b>asosiy o'yinchilar</b>ni hamda <b>kun/vaqt</b>ni tanlashingiz kerak. ` +
+  `Buni hoziroq pastda avtomatik ochiladigan oyna orqali bajaring — qo'shimcha tugma bosish shart emas.\n\n` +
+  `🔁 Agar oyna ko'rinmasa yoki keyinroq qaytadan sozlamoqchi bo'lsangiz, klaviaturadagi ` +
+  `<b>«🎟 Bosqich slotini tanlash»</b> tugmasini bosing.\n\n` +
+  `⚠️ Joy tanlaganingizda o'sha guruhning <b>maxfiy guruhiga</b> qo'shilishingiz shart — aks holda turnirda qatnasha olmaysiz.`;

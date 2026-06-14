@@ -268,6 +268,11 @@ export const resendSponsorReminders = async (tgId) => {
   return registrationsService.resendPendingSponsorReminders(tgId);
 };
 
+// /start: re-deliver a VIP-slot notice that failed to reach the leader earlier (bot blocked).
+export const resendPlacementNotice = async (tgId) => {
+  return registrationsService.resendPendingPlacementNotice(tgId);
+};
+
 // "Mening turnirlarim": this user's own missing sponsor channels for a tournament (no side-effects).
 export const getSelfSponsorChannels = async (tgId, tournamentId) => {
   const user = await findByTgId(tgId);

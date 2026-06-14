@@ -61,6 +61,9 @@ const registrationSchema = new mongoose.Schema(
       enum: Object.values(TEAM_PLACEMENT_KIND),
       default: TEAM_PLACEMENT_KIND.NORMAL,
     },
+    // True when a VIP-slot DM failed to reach the leader (bot blocked/offline). Resent on the
+    // leader's next /start, then cleared once delivered. See resendPendingPlacementNotice.
+    vipNoticePending: { type: Boolean, default: false },
     registeredAt: { type: Date, default: () => new Date() },
   },
   { timestamps: true },

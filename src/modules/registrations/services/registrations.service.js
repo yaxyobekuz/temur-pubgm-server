@@ -11,6 +11,8 @@ import {
   ACTIVE_TOURNAMENT_STATUSES,
   MODE_ROSTER_SIZE,
   TEAM_PLACEMENT_KIND,
+  getStageLabel,
+  buildVipPlacementNotice,
 } from "../../../constants/tournament.js";
 import * as botClient from "../../../services/botClient.service.js";
 import * as notify from "../../../services/notify.service.js";
@@ -250,6 +252,41 @@ export const resendPendingSponsorReminders = async (tgId) => {
     }
   }
   return { sent };
+};
+
+// /start: re-delivers the VIP-slot notice that earlier failed to reach the leader (bot blocked).
+// Returns { resent } so the bot can auto-open the placement picker right after. Clears the flag
+// once delivered (or if the registration/tournament is no longer awaiting a VIP placement).
+export const resendPendingPlacementNotice = async (tgId) => {
+  const u = await User.findOne({ tgId: Number(tgId) }, "tgId firstName lastName tgUsername");
+  if (!u) return { resent: false };
+  const team = await Team.findOne({ leader: u._id }, "_id");
+  if (!team) return { resent: false };
+
+  const reg = await TournamentRegistration.findOne({
+    team: team._id,
+    status: REGISTRATION_STATUS.REGISTERED,
+    vipNoticePending: true,
+    $expr: { $gt: ["$eligibleStage", "$placedStage"] },
+  }).populate("tournament", "title status stagesCount");
+
+  if (!reg) return { resent: false };
+
+  // Stale flag (tournament gone/finished, or no longer awaiting placement) -> clear and skip.
+  const status = reg.tournament?.status;
+  if (!status || ![TOURNAMENT_STATUS.PENDING, TOURNAMENT_STATUS.ONGOING].includes(status)) {
+    reg.vipNoticePending = false;
+    await reg.save().catch(() => {});
+    return { resent: false };
+  }
+
+  const stageLabel = getStageLabel(reg.eligibleStage, reg.tournament.stagesCount);
+  const delivered = await notify.notifyUser({ tgId: u.tgId, text: buildVipPlacementNotice(stageLabel) });
+  if (!delivered) return { resent: false }; // still unreachable - retry on the next /start
+
+  reg.vipNoticePending = false;
+  await reg.save().catch(() => {});
+  return { resent: true };
 };
 
 export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot }) => {
@@ -558,6 +595,7 @@ export const placeIntoStage = async ({ leaderUser, registrationId, day, timeSlot
   reg.currentGroup = openGroup._id;
   reg.placedStage = reg.eligibleStage;
   reg.nextPlacementKind = TEAM_PLACEMENT_KIND.NORMAL;
+  reg.vipNoticePending = false; // placed now - no pending VIP notice to resend
   await reg.save();
 
   return reg.populate({ path: "currentGroup", select: "code day timeSlot" });

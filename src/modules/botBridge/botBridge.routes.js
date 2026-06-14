@@ -46,6 +46,7 @@ import {
   sponsorCheck,
   selfSponsor,
   resendSponsorReminders,
+  resendPlacementNotice,
   pendingPlacement,
   placeIntoStage,
 } from "./handlers/tournaments.handler.js";
@@ -69,6 +70,11 @@ router.post(
   "/users/sponsor-reminders/resend",
   validate(tgOnlySchema),
   resendSponsorReminders,
+);
+router.post(
+  "/users/placement-notice/resend",
+  validate(tgOnlySchema),
+  resendPlacementNotice,
 );
 
 router.get("/teams", validate(getTeamSchema), getTeam);

@@ -56,6 +56,11 @@ export const resendSponsorReminders = asyncHandler(async (req, res) => {
   res.json({ success: true, data });
 });
 
+export const resendPlacementNotice = asyncHandler(async (req, res) => {
+  const data = await botBridge.resendPlacementNotice(req.body.tgId);
+  res.json({ success: true, data });
+});
+
 export const pendingPlacement = asyncHandler(async (req, res) => {
   const data = await botBridge.getPendingPlacement(req.query.tgId);
   res.json({ success: true, data });
