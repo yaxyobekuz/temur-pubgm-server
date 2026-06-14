@@ -3,6 +3,7 @@ import Stage from "../../../models/stage.model.js";
 import Group from "../../../models/group.model.js";
 import HelpLink from "../../../models/helpLink.model.js";
 import Team from "../../../models/team.model.js";
+import User from "../../../models/user.model.js";
 import * as settingsService from "../../settings/services/settings.service.js";
 import TournamentRegistration, {
   REGISTRATION_STATUS,
@@ -17,11 +18,13 @@ import {
   TEAM_PLACEMENT_KIND,
   getStageBlueprint,
   getStageLabel,
+  buildVipPlacementNotice,
 } from "../../../constants/tournament.js";
 import { BROADCAST_TARGET } from "../../../models/broadcastJob.model.js";
 import * as stagesService from "../../stages/services/stages.service.js";
 import * as groupsService from "../../groups/services/groups.service.js";
 import * as notify from "../../../services/notify.service.js";
+import * as botClient from "../../../services/botClient.service.js";
 import logger from "../../../config/logger.js";
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -259,13 +262,16 @@ const dmRegistrationLeaders = async (regIds, makeText) => {
 };
 
 // Barcha komanda a'zolariga bir xil matnli DM (best-effort).
+// Returns Map<userIdString, delivered:boolean> so callers can react to a failed delivery.
 const notifyTeamMembers = async (teamId, text) => {
+  const delivered = new Map();
   const team = await Team.findById(teamId, "members").lean();
-  if (!team?.members?.length) return;
+  if (!team?.members?.length) return delivered;
   const recipients = await notify.resolveRecipients(team.members);
-  for (const rec of recipients.values()) {
-    await notify.notifyUser({ tgId: rec.tgId, text });
+  for (const [userId, rec] of recipients) {
+    delivered.set(userId, await notify.notifyUser({ tgId: rec.tgId, text }));
   }
+  return delivered;
 };
 
 export const changeStatus = async (id, next, currentUser) => {
@@ -367,7 +373,7 @@ export const openVipSlot = async (id, { teamId, stageOrder }, currentUser) => {
     throw new ApiError(400, "Noto'g'ri bosqich");
   }
 
-  const team = await Team.findById(teamId, "members");
+  const team = await Team.findById(teamId, "members leader");
   if (!team) throw new ApiError(404, "Komanda topilmadi");
 
   // Ensure the chosen stage's group skeleton exists (idempotent) - needed when granting a VIP
@@ -416,10 +422,22 @@ export const openVipSlot = async (id, { teamId, stageOrder }, currentUser) => {
 
   // Barcha komanda a'zolariga VIP slot xabari.
   const stageLabel = getStageLabel(resolvedStage, t.stagesCount);
-  await notifyTeamMembers(
-    teamId,
-    `🎟 Sizga <b>${stageLabel}</b> uchun VIP slot berildi! Bot orqali asosiy o'yinchilar va kun/vaqtni tanlang.\n\n⚠️ Joy tanlaganingizda o'sha guruhning <b>maxfiy guruhiga</b> qo'shilishingiz shart - aks holda turnirda qatnasha olmaysiz.`,
-  );
+  const delivered = await notifyTeamMembers(teamId, buildVipPlacementNotice(stageLabel));
+
+  // The leader drives placement. If the DM reached them, push the picker so it opens automatically
+  // (no "🎟 Bosqich slotini tanlash" tap needed). If it didn't, flag it for resend on next /start.
+  const leaderDelivered = team.leader ? delivered.get(String(team.leader)) === true : false;
+  reg.vipNoticePending = !leaderDelivered;
+  await reg.save();
+
+  if (leaderDelivered) {
+    const leaderTgId = (await User.findById(team.leader, "tgId").lean())?.tgId;
+    if (leaderTgId) {
+      await botClient
+        .openPlacement({ tgId: leaderTgId })
+        .catch((err) => logger.warn({ err: err.message, teamId }, "openPlacement push xato"));
+    }
+  }
 
   return withStages(t);
 };

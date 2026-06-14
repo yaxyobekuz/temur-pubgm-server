@@ -66,3 +66,10 @@ export const sendMessage = async ({ chatId, text, parseMode, buttons, mediaUrl }
   });
   return r?.data || {};
 };
+
+// Asks the bot to push the placement picker (roster/day-time) straight to a leader's chat, so a
+// VIP-invited team continues automatically without tapping "🎟 Bosqich slotini tanlash".
+export const openPlacement = async ({ tgId }) => {
+  const r = await request(`${env.BOT_INTERNAL_URL}/open-placement`, { body: { tgId } });
+  return r?.data || {};
+};
