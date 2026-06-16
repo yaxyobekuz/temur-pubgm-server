@@ -148,6 +148,20 @@ export const secretGroupTeamsSchema = z.object({
   query: z.object({ chatId: z.coerce.string().min(1) }),
 });
 
+export const rosterForSwapSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  query: z.object({ tgId: tgIdSchema }),
+});
+
+export const swapRosterSchema = z.object({
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({
+    tgId: tgIdSchema,
+    outUserId: z.string().min(1),
+    inUserId: z.string().min(1),
+  }),
+});
+
 export const placeSchema = z.object({
   params: z.object({ id: z.string().min(1) }),
   body: z.object({

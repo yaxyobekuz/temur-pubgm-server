@@ -20,6 +20,8 @@ import {
   sponsorCheckSchema,
   pendingPlacementSchema,
   placeSchema,
+  rosterForSwapSchema,
+  swapRosterSchema,
   secretGroupTeamsSchema,
 } from "./validators/botBridge.validator.js";
 import registerOrLogin from "./handlers/registerOrLogin.handler.js";
@@ -49,6 +51,8 @@ import {
   resendPlacementNotice,
   pendingPlacement,
   placeIntoStage,
+  rosterForSwap,
+  swapRosterMember,
 } from "./handlers/tournaments.handler.js";
 import { listHelpLinks } from "./handlers/helpLinks.handler.js";
 import { getSettings } from "./handlers/settings.handler.js";
@@ -103,6 +107,8 @@ router.post(
 router.get("/registrations/pending-placement", validate(pendingPlacementSchema), pendingPlacement);
 router.get("/registrations", validate(myRegistrationsSchema), myRegistrations);
 router.post("/registrations/:id/place", validate(placeSchema), placeIntoStage);
+router.get("/registrations/:id/roster", validate(rosterForSwapSchema), rosterForSwap);
+router.post("/registrations/:id/swap", validate(swapRosterSchema), swapRosterMember);
 
 router.get("/groups/teams-by-chat", validate(secretGroupTeamsSchema), secretGroupTeams);
 

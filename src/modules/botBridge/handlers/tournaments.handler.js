@@ -76,3 +76,18 @@ export const placeIntoStage = asyncHandler(async (req, res) => {
   );
   res.json({ success: true, data: reg, message: "Joy tanlandi" });
 });
+
+export const rosterForSwap = asyncHandler(async (req, res) => {
+  const data = await botBridge.getRosterForSwap(req.query.tgId, req.params.id);
+  res.json({ success: true, data });
+});
+
+export const swapRosterMember = asyncHandler(async (req, res) => {
+  const reg = await botBridge.swapRosterMember(
+    req.body.tgId,
+    req.params.id,
+    req.body.outUserId,
+    req.body.inUserId,
+  );
+  res.json({ success: true, data: reg, message: "O'yinchi almashtirildi" });
+});

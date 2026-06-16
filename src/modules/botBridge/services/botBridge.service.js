@@ -195,6 +195,29 @@ export const placeIntoStage = async (tgId, registrationId, day, timeSlot, roster
   });
 };
 
+// Roster-swap context: the leader's current roster + swap-in candidates for a registration.
+export const getRosterForSwap = async (tgId, registrationId) => {
+  const user = await findByTgId(tgId);
+  if (user.role !== ROLES.LEADER) {
+    throw new ApiError(403, "Faqat leader o'yinchini almashtira oladi");
+  }
+  return registrationsService.getRosterForSwap(user, registrationId);
+};
+
+// Replace one roster player with another team member (incoming player must pass the sponsor gate).
+export const swapRosterMember = async (tgId, registrationId, outUserId, inUserId) => {
+  const user = await findByTgId(tgId);
+  if (user.role !== ROLES.LEADER) {
+    throw new ApiError(403, "Faqat leader o'yinchini almashtira oladi");
+  }
+  return registrationsService.swapRosterMember({
+    leaderUser: user,
+    registrationId,
+    outUserId,
+    inUserId,
+  });
+};
+
 // --- Help links (bot-only) -------------------------------------------------
 
 export const listHelpLinks = async () => {
