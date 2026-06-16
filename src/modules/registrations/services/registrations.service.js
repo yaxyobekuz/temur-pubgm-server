@@ -318,7 +318,8 @@ export const register = async ({ tournamentId, leaderUser, roster, day, timeSlot
     throw new ApiError(409, "Komandangiz allaqachon boshqa turnirda ro'yxatdan o'tgan");
   }
 
-  // Even if a non-active dropped registration exists (kicked/dq), enforce unique (tournament, team).
+  // A removed (kicked) team is hard-deleted, so re-registration is allowed; this only guards
+  // against a lingering non-active record (e.g. dq) and the unique (tournament, team) index.
   const dup = await TournamentRegistration.findOne({ tournament: tournament._id, team: team._id });
   if (dup) throw new ApiError(409, "Bu turnirga allaqachon ariza berilgan");
 
@@ -451,45 +452,152 @@ export const getById = async (id) => {
   return r;
 };
 
+// Remove a team from THIS tournament entirely: free its group slot (so a future team auto-fills
+// it) and hard-delete the registration. This is NOT a ban - the team's tournament-specific data
+// is simply dropped; the leader may re-register via the bot. A removed team therefore disappears
+// from the admin list, the secret-group /teams list, and the leader's "Mening turnirlarim".
 export const kick = async (id) => {
   const r = await getById(id);
-  if (r.status === REGISTRATION_STATUS.KICKED) return r;
-  r.status = REGISTRATION_STATUS.KICKED;
-  await r.save();
 
-  // Leaderga diskvalifikatsiya xabari.
+  // Free the team's group slot (if placed) so the spot opens up for another team.
+  if (r.currentGroup) {
+    await groupsService.removeTeam(r.currentGroup, r._id).catch(() => {});
+  }
+
+  // Resolve the leader before dropping the record so we can still notify them.
   const leader = await notify.resolveRecipient(r.team?.leader);
+
+  await TournamentRegistration.deleteOne({ _id: r._id });
+
   if (leader) {
     await notify.notifyUser({
       tgId: leader.tgId,
-      text: `⚠️ Komandangiz <b>${r.tournament?.title || "turnir"}</b> turniridan chiqarildi.`,
+      text:
+        `⚠️ Komandangiz <b>${r.tournament?.title || "turnir"}</b> turniridan chiqarildi. ` +
+        "Istasangiz bot orqali ushbu turnirga qaytadan ro'yxatdan o'tishingiz mumkin.",
     });
   }
-  return r;
+  return { _id: String(r._id), team: r.team?._id || r.team || null, removed: true };
 };
 
-// Undo a kick: bring a kicked team back into the tournament.
-export const restore = async (id) => {
-  const r = await getById(id);
-  if (r.status === REGISTRATION_STATUS.REGISTERED) return r;
-  // Enforce the one-active rule: the team must not be committed elsewhere.
-  const teamId = r.team?._id || r.team;
-  const existingActive = await findActiveRegistration(teamId);
-  if (existingActive && String(existingActive._id) !== String(r._id)) {
-    throw new ApiError(409, "Komanda allaqachon boshqa turnirda ro'yxatdan o'tgan");
-  }
-  r.status = REGISTRATION_STATUS.REGISTERED;
-  await r.save();
+// Swap context for the bot: the leader's registration roster (who's playing) + the team members
+// not currently on it (eligible to be swapped in). Only for an active (pending/ongoing) tournament.
+export const getRosterForSwap = async (leaderUser, registrationId) => {
+  const team = await Team.findOne({ leader: leaderUser._id }).populate(
+    "members",
+    "firstName lastName tgUsername",
+  );
+  if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
 
-  // Leaderga qayta tiklash xabari.
-  const leader = await notify.resolveRecipient(r.team?.leader);
-  if (leader) {
-    await notify.notifyUser({
-      tgId: leader.tgId,
-      text: `✅ Komandangiz <b>${r.tournament?.title || "turnir"}</b> turniriga qaytarildi.`,
+  const reg = await TournamentRegistration.findOne({
+    _id: registrationId,
+    team: team._id,
+    status: REGISTRATION_STATUS.REGISTERED,
+  }).populate("tournament", "title status mode");
+  if (!reg) throw new ApiError(404, "Ro'yxat topilmadi");
+  if (![TOURNAMENT_STATUS.PENDING, TOURNAMENT_STATUS.ONGOING].includes(reg.tournament?.status)) {
+    throw new ApiError(400, "Bu turnir uchun o'yinchini almashtirib bo'lmaydi");
+  }
+
+  const memberById = new Map((team.members || []).map((m) => [String(m._id), m]));
+  const rosterUserIds = new Set(reg.roster.map((e) => String(e.user)));
+
+  const roster = reg.roster.map((e) => ({
+    userId: String(e.user),
+    name: memberName(memberById.get(String(e.user)) || {}),
+    slot: e.slot,
+  }));
+  // Team members not on the roster yet - the candidates a roster player can be swapped for.
+  const candidates = (team.members || [])
+    .filter((m) => !rosterUserIds.has(String(m._id)))
+    .map((m) => ({
+      _id: String(m._id),
+      firstName: m.firstName,
+      lastName: m.lastName,
+      tgUsername: m.tgUsername,
+    }));
+
+  return {
+    registrationId: String(reg._id),
+    tournamentTitle: reg.tournament?.title || "Turnir",
+    mode: reg.tournament?.mode,
+    roster,
+    candidates,
+  };
+};
+
+// Replace one roster player (outUserId) with another team member (inUserId) on an existing
+// registration, keeping the slot. The incoming player must pass the SAME sponsor-channel gate
+// as at registration (subscribed to the TG sponsor channels). Leader-only, active tournament only.
+export const swapRosterMember = async ({ leaderUser, registrationId, outUserId, inUserId }) => {
+  if (!outUserId || !inUserId) throw new ApiError(400, "O'yinchilarni tanlang");
+  if (String(outUserId) === String(inUserId)) {
+    throw new ApiError(400, "Bir xil o'yinchini tanladingiz");
+  }
+
+  const team = await Team.findOne({ leader: leaderUser._id });
+  if (!team) throw new ApiError(404, "Sizning komandangiz topilmadi");
+
+  const reg = await TournamentRegistration.findOne({
+    _id: registrationId,
+    team: team._id,
+    status: REGISTRATION_STATUS.REGISTERED,
+  });
+  if (!reg) throw new ApiError(404, "Ro'yxat topilmadi");
+
+  const tournament = await Tournament.findById(
+    reg.tournament,
+    "title status mode sponsorChannels",
+  );
+  if (!tournament) throw new ApiError(404, "Turnir topilmadi");
+  if (![TOURNAMENT_STATUS.PENDING, TOURNAMENT_STATUS.ONGOING].includes(tournament.status)) {
+    throw new ApiError(400, "Bu turnir uchun o'yinchini almashtirib bo'lmaydi");
+  }
+
+  // The outgoing player must currently be on the roster; the incoming one must be a team member
+  // who is not already on it.
+  const entry = reg.roster.find((e) => String(e.user) === String(outUserId));
+  if (!entry) throw new ApiError(400, "Almashtiriladigan o'yinchi rosterda yo'q");
+  const memberIds = new Set(team.members.map((m) => String(m)));
+  if (!memberIds.has(String(inUserId))) {
+    throw new ApiError(400, "Yangi o'yinchi komanda a'zosi bo'lishi kerak");
+  }
+  if (reg.roster.some((e) => String(e.user) === String(inUserId))) {
+    throw new ApiError(400, "Bu o'yinchi allaqachon rosterda");
+  }
+
+  const inUser = await User.findById(inUserId, "tgId firstName lastName tgUsername");
+  if (!inUser) throw new ApiError(404, "Yangi o'yinchi topilmadi");
+  if (!inUser.tgId) {
+    throw new ApiError(400, "Yangi o'yinchi Telegram orqali ro'yxatdan o'tgan bo'lishi kerak");
+  }
+
+  // Sponsor-channel gate for the incoming player (TG only) - same rule as registration.
+  // DMs the player the channel list when something is missing.
+  const sub = await evaluateSponsorMembership({
+    tournament,
+    users: [inUser],
+    leaderId: leaderUser._id,
+  });
+  if (!sub.ok) {
+    throw new ApiError(403, "Yangi o'yinchi homiy kanallarga obuna emas", {
+      details: { channels: sub.channels, members: sub.members.map((m) => ({ name: m.name })) },
     });
   }
-  return r;
+
+  // Replace the player on this slot (slot/position preserved).
+  entry.user = inUser._id;
+  await reg.save();
+
+  await notify.notifyUser({
+    tgId: inUser.tgId,
+    text: `✅ Siz <b>${tournament.title}</b> turniri uchun jamoa tarkibiga qo'shildingiz.`,
+  });
+
+  return reg.populate([
+    { path: "team", select: "name tag logo" },
+    { path: "roster.user", select: "firstName lastName tgUsername gameNickname" },
+  ]);
 };
 
 export const setGroup = async (id, groupId) => {
