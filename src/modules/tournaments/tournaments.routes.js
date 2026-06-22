@@ -22,6 +22,7 @@ import update from "./handlers/update.handler.js";
 import remove from "./handlers/remove.handler.js";
 import changeStatus from "./handlers/changeStatus.handler.js";
 import promote from "./handlers/promote.handler.js";
+import revert from "./handlers/revert.handler.js";
 import openVip from "./handlers/vip.handler.js";
 import recordFinalPlacements from "./handlers/finalPlacements.handler.js";
 import {
@@ -81,6 +82,13 @@ router.post(
   requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
   validate(promoteSchema),
   promote,
+);
+router.post(
+  "/:id/revert-to-previous",
+  requireAuth,
+  requirePermission(PERMISSIONS.TOURNAMENTS_UPDATE),
+  validate(idSchema),
+  revert,
 );
 router.post(
   "/:id/vip-slots",

@@ -246,6 +246,36 @@ const enqueuePromoteBroadcast = async (tournament, nextOrder, currentUser) => {
   }
 };
 
+// Notify every tournament member that the stage was rolled back to the previous one. Mirrors
+// enqueuePromoteBroadcast: any team that had advanced should disregard the earlier "new stage
+// opened" notice, and teams may need to re-pick their day/time slot for the restored stage.
+const enqueueRevertBroadcast = async (tournament, prevOrder, currentUser) => {
+  try {
+    const { create } = await import("../../broadcasts/services/broadcasts.service.js");
+    const stageLabel = getStageLabel(prevOrder, tournament.stagesCount);
+    const title = `${tournament.title} - ${stageLabel}`;
+    const body = [
+      `<b>${tournament.title}</b> turniri <b>${stageLabel}</b>ga qaytarildi.`,
+      "",
+      "Avvalgi bosqich o'tkazilishi bo'yicha xabar bekor qilindi - iltimos, e'tiborsiz qoldiring.",
+      "Ba'zi komandalar bot orqali kun va vaqtni qaytadan tanlashlari kerak bo'lishi mumkin.",
+    ].join("\n");
+    await create(
+      {
+        title,
+        body,
+        target: { type: BROADCAST_TARGET.TOURNAMENT, ids: [tournament._id.toString()] },
+      },
+      currentUser,
+    );
+  } catch (err) {
+    logger.warn(
+      { err: err.message, tournamentId: tournament._id, prevOrder },
+      "Revert broadcast enqueue xato",
+    );
+  }
+};
+
 // Berilgan registratsiyalar leaderlariga matnli DM (matn `(name) => text` orqali, per-leader).
 // promote (o'tgan komandalar) va final (g'oliblar) ikkalasi ishlatadi - N+1 dan qochish uchun batch.
 const dmRegistrationLeaders = async (regIds, makeText) => {
@@ -352,6 +382,77 @@ export const promoteToNext = async (id, groupsPayload, currentUser) => {
     advancingIds,
     () => `🎉 Tabriklaymiz! Siz <b>${stageLabel}</b> bosqichiga o'tdingiz. Bot orqali kun va vaqtni tanlang.`,
   );
+
+  return withStages(t);
+};
+
+// Undo the most recent promote: roll the tournament back from stage N to N-1 so everything behaves
+// exactly as it did in that stage. Stage-N group placements (incl. final results) are wiped, and
+// each registration that had moved to stage N is restored to its previous-stage footing:
+//   - advanced/normal teams (they have a stage N-1 group) -> placed back into that group;
+//   - VIP teams granted directly into stage N (no N-1 group) -> KEEP their VIP grant but for the
+//     previous stage (eligible & pending), so the leader re-picks a day/time slot via the bot.
+// Notifies all tournament members via a broadcast. Allowed only while ONGOING and not on stage 1.
+export const revertToPreviousStage = async (id, currentUser) => {
+  const t = await getRawById(id);
+  if (t.status !== TOURNAMENT_STATUS.ONGOING) {
+    throw new ApiError(400, "Turnir aktiv bosqichda emas");
+  }
+  if (t.currentStage <= 1) {
+    throw new ApiError(400, "Bu birinchi bosqich, ortga qaytib bo'lmaydi");
+  }
+
+  const leavingOrder = t.currentStage;
+  const prevOrder = t.currentStage - 1;
+  const leavingStage = await stagesService.getByTournamentAndOrder(t._id, leavingOrder);
+  const prevStage = await stagesService.getByTournamentAndOrder(t._id, prevOrder);
+
+  // Map each registration to its "home" group in the previous stage (where it still sits, because
+  // promote never removes teams from the stage they advanced FROM). Used to restore currentGroup.
+  const prevGroups = await Group.find({ stage: prevStage._id });
+  const regToPrevGroup = new Map();
+  for (const g of prevGroups) {
+    for (const tm of g.teams) regToPrevGroup.set(String(tm.registration), g._id);
+  }
+
+  // Wipe the leaving stage's group placements (and any final results) so a re-promote starts clean.
+  const leavingGroups = await Group.find({ stage: leavingStage._id });
+  for (const g of leavingGroups) {
+    if (g.teams.length) {
+      g.teams = [];
+      await g.save();
+    }
+  }
+
+  // Restore every registration that had moved up to the leaving stage.
+  const movedRegs = await TournamentRegistration.find({
+    tournament: t._id,
+    eligibleStage: leavingOrder,
+  });
+  for (const reg of movedRegs) {
+    const prevGroupId = regToPrevGroup.get(String(reg._id));
+    if (prevGroupId) {
+      // Played the previous stage: put it back exactly as before the promote.
+      reg.currentGroup = prevGroupId;
+      reg.placedStage = prevOrder;
+      reg.eligibleStage = prevOrder;
+      reg.nextPlacementKind = TEAM_PLACEMENT_KIND.NORMAL;
+    } else {
+      // VIP team with no previous-stage footing: keep the VIP grant, now for the previous stage.
+      // placedStage < eligibleStage marks it pending so the bot re-opens the slot picker.
+      reg.currentGroup = null;
+      reg.eligibleStage = prevOrder;
+      reg.placedStage = prevOrder - 1;
+      reg.nextPlacementKind = TEAM_PLACEMENT_KIND.VIP;
+    }
+    reg.vipNoticePending = false;
+    await reg.save();
+  }
+
+  t.currentStage = prevOrder;
+  await t.save();
+
+  await enqueueRevertBroadcast(t, prevOrder, currentUser);
 
   return withStages(t);
 };
