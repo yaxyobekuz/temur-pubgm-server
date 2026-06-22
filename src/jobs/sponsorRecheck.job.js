@@ -1,8 +1,10 @@
 import Tournament from "../models/tournament.model.js";
+import Stage from "../models/stage.model.js";
+import Group from "../models/group.model.js";
 import TournamentRegistration, {
   REGISTRATION_STATUS,
 } from "../models/tournamentRegistration.model.js";
-import { TOURNAMENT_STATUS } from "../constants/tournament.js";
+import { TOURNAMENT_STATUS, TEAM_PLACEMENT_KIND } from "../constants/tournament.js";
 import * as registrationsService from "../modules/registrations/services/registrations.service.js";
 import * as notify from "../services/notify.service.js";
 import * as botClient from "../services/botClient.service.js";
@@ -34,6 +36,21 @@ const define = (agenda) => {
 
       const social = registrationsService.socialSponsorChannels(tournament);
 
+      // VIP slot olgan komandalar homiy-kanal shartidan ozod - shu sabab ularni qayta
+      // tekshiruvdan ham chiqaramiz. VIP belgisi ikki manbadan: (1) biror bosqich guruhiga
+      // "vip" sifatida joylashtirilgan (doimiy yozuv), (2) hozir VIP joylashuvni kutmoqda.
+      const stages = await Stage.find({ tournament: tournament._id }, "_id");
+      const vipGroups = await Group.find(
+        { stage: { $in: stages.map((s) => s._id) }, "teams.kind": TEAM_PLACEMENT_KIND.VIP },
+        "teams",
+      );
+      const vipRegIds = new Set();
+      for (const g of vipGroups) {
+        for (const tm of g.teams) {
+          if (tm.kind === TEAM_PLACEMENT_KIND.VIP) vipRegIds.add(String(tm.registration));
+        }
+      }
+
       const regs = await TournamentRegistration.find({
         tournament: tournament._id,
         status: REGISTRATION_STATUS.REGISTERED,
@@ -43,6 +60,11 @@ const define = (agenda) => {
         .populate("currentGroup", "secretGroup");
 
       for (const reg of regs) {
+        // VIP komandalarni o'tkazib yuboramiz (homiy-kanal sharti ularga tegishli emas).
+        if (vipRegIds.has(String(reg._id)) || reg.nextPlacementKind === TEAM_PLACEMENT_KIND.VIP) {
+          continue;
+        }
+
         const users = (reg.roster || []).map((r) => r.user).filter(Boolean);
         if (!users.length) continue;
 
